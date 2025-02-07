@@ -205,14 +205,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Draw the mesh for the chart
     chart.configure_mesh().draw()?; // Define the data points for the line
-    let line_data = vec![
-        (0.0, 0.0),
-        (1.0, 2.0),
-        (2.0, 3.0),
-        (3.0, 5.0),
-        (4.0, 7.0),
-        (5.0, 8.0),
-    ];
 
     // Plot the line using the data points
     chart
