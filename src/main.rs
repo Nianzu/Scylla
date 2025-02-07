@@ -1,6 +1,6 @@
-use std::{os::linux::net, process::Output};
-
+use plotters::prelude::*;
 use rand::Rng;
+use std::{os::linux::net, process::Output, vec};
 
 struct Layer {
     weights: Vec<Vec<f64>>,
@@ -135,7 +135,7 @@ impl Network {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // xor training data
     let training_data = vec![
         (vec![0.0, 0.0], vec![0.0]),
@@ -144,14 +144,16 @@ fn main() {
         (vec![1.0, 1.0], vec![0.0]),
     ];
 
-    let mut network = Network::new(&[2,2,1]);
+    let mut network = Network::new(&[2, 2, 1]);
     let learning_rate = 0.5;
     let epochs = 100000;
 
+    let mut losses: Vec<f64> = vec![];
+
     // Training loop
-    for epoch in 0..epochs{
+    for epoch in 0..epochs {
         let mut loss_sum = 0.0;
-        for (ref input, ref target) in training_data.iter(){
+        for (ref input, ref target) in training_data.iter() {
             let output = network.forward(input);
             let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
             loss_sum += loss;
@@ -159,15 +161,65 @@ fn main() {
             let dL_dout = vec![output[0] - target[0]];
             network.backward(&dL_dout, learning_rate);
         }
+        let loss_avg = loss_sum / training_data.len() as f64;
+        losses.push(loss_avg);
         if epoch % 1000 == 0 {
-            println!("Epoch {}: avg loss = {}", epoch, loss_sum/training_data.len() as f64);
+            println!("Epoch {}: avg loss = {}", epoch, loss_avg);
         }
     }
 
     // Testing
     for (input, target) in training_data.iter() {
         let output = network.forward(input);
-        println!("Input: {:?}, target: {:?} output: {:?}",input,target,output);
+        println!(
+            "Input: {:?}, target: {:?} output: {:?}",
+            input, target, output
+        );
     }
 
+    // Visualization
+    // Create a drawing area for the plot
+    let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    // Define the chart area and label axes
+    let mut chart = ChartBuilder::on(&root)
+        .caption("Loss over epochs", ("sans-serif", 50).into_font())
+        .margin(20)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_2d(0.0..losses.len() as f64, 0.0..0.2)?;
+    // .build_cartesian_2d(0.0..losses.len() as f64, (0.0..0.2).log_scale())?;
+
+    // Draw the mesh for the chart
+    chart.configure_mesh().draw()?; // Define the data points for the line
+    let line_data = vec![
+        (0.0, 0.0),
+        (1.0, 2.0),
+        (2.0, 3.0),
+        (3.0, 5.0),
+        (4.0, 7.0),
+        (5.0, 8.0),
+    ];
+
+    // Plot the line using the data points
+    chart
+        .draw_series(LineSeries::new(
+            losses.iter().enumerate().map(|(i, &loss)| (i as f64, loss)),
+            &RED,
+        ))?
+        .label("Training Loss")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    // Add legend to the chart
+    chart
+        .configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()?;
+
+    // Save the plot
+    root.present()?;
+
+    Ok(())
 }
