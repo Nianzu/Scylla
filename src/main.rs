@@ -1,6 +1,8 @@
 use plotters::prelude::*;
 use rand::Rng;
 use std::{os::linux::net, process::Output, vec};
+use std::fs::File;
+use std::io::Read;
 
 struct Layer {
     weights: Vec<Vec<f64>>,
@@ -135,95 +137,155 @@ impl Network {
     }
 }
 
+// fn main() -> Result<(), Box<dyn std::error::Error>> {
+//     //#########################################################################
+//     // Load data
+//     //#########################################################################
+
+//     // xor training data
+//     let training_data = vec![
+//         (vec![0.0, 0.0], vec![0.0]),
+//         (vec![0.0, 1.0], vec![1.0]),
+//         (vec![1.0, 0.0], vec![1.0]),
+//         (vec![1.0, 1.0], vec![0.0]),
+//     ];
+
+//     let mut network = Network::new(&[2, 2, 1]);
+//     let learning_rate = 0.5;
+//     let epochs = 100000;
+
+//     let mut losses: Vec<f64> = vec![];
+
+//     //#########################################################################
+//     // Training
+//     //#########################################################################
+
+//     for epoch in 0..epochs {
+//         let mut loss_sum = 0.0;
+//         for (ref input, ref target) in training_data.iter() {
+//             let output = network.forward(input);
+//             let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
+//             loss_sum += loss;
+//             // dl/dout (Gradient of loss for the network) = (output - target)
+//             let dL_dout = vec![output[0] - target[0]];
+//             network.backward(&dL_dout, learning_rate);
+//         }
+//         let loss_avg = loss_sum / training_data.len() as f64;
+//         losses.push(loss_avg);
+//         if epoch % 1000 == 0 {
+//             println!("Epoch {}: avg loss = {}", epoch, loss_avg);
+//         }
+//     }
+
+//     //#########################################################################
+//     // Testing
+//     //#########################################################################
+
+//     for (input, target) in training_data.iter() {
+//         let output = network.forward(input);
+//         println!(
+//             "Input: {:?}, target: {:?} output: {:?}",
+//             input, target, output
+//         );
+//     }
+
+//     //#########################################################################
+//     // Visualization
+//     //#########################################################################
+//     // Create a drawing area for the plot
+//     let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
+//     root.fill(&WHITE)?;
+
+//     // Define the chart area and label axes
+//     let mut chart = ChartBuilder::on(&root)
+//         .caption("Loss over epochs", ("sans-serif", 50).into_font())
+//         .margin(20)
+//         .x_label_area_size(30)
+//         .y_label_area_size(30)
+//         .build_cartesian_2d(0.0..losses.len() as f64, 0.0..0.2)?;
+//     // .build_cartesian_2d(0.0..losses.len() as f64, (0.0..0.2).log_scale())?;
+
+//     // Draw the mesh for the chart
+//     chart.configure_mesh().draw()?; // Define the data points for the line
+
+//     // Plot the line using the data points
+//     chart
+//         .draw_series(LineSeries::new(
+//             losses.iter().enumerate().map(|(i, &loss)| (i as f64, loss)),
+//             &RED,
+//         ))?
+//         .label("Training Loss")
+//         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+//     // Add legend to the chart
+//     chart
+//         .configure_series_labels()
+//         .background_style(&WHITE.mix(0.8))
+//         .border_style(&BLACK)
+//         .draw()?;
+
+//     // Save the plot
+//     root.present()?;
+
+//     Ok(())
+// }
+
+// https://github.com/R34ll/mnist_rust
+fn load_dataset_mnist_images() -> Vec<Vec<Vec<u8>>>{
+    let mut file = File::open("datasets/mnist/t10k-images.idx3-ubyte").expect("File non find");
+
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).unwrap();
+    data.drain(0..16); // https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
+    let mut dataset: Vec<Vec<Vec<u8>>> = data.chunks(784).map(|chunk| chunk.chunks(28).map(|s| s.into()).collect()).collect();
+    println!("Images in dataset: {}",dataset.len());
+    dataset
+}
+
+// https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
+fn load_dataset_mnist_label() -> Vec<u8>{
+    let mut file = File::open("datasets/mnist/t10k-labels.idx1-ubyte").expect("File non find");
+
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).unwrap();
+    data.drain(0..8); 
+    let mut labels: Vec<u8> = data.iter_mut().map(|&mut l| l as u8).collect();
+    println!("Labels in dataset: {}",labels.len());
+    labels
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //#########################################################################
-    // Load data
-    //#########################################################################
+    let dataset: Vec<Vec<Vec<u8>>> = load_dataset_mnist_images();
+    let labels: Vec<u8> = load_dataset_mnist_label();
+    let index= 9999;
+    let data :Vec<Vec<u8>> = dataset[index].clone();
 
-    // xor training data
-    let training_data = vec![
-        (vec![0.0, 0.0], vec![0.0]),
-        (vec![0.0, 1.0], vec![1.0]),
-        (vec![1.0, 0.0], vec![1.0]),
-        (vec![1.0, 1.0], vec![0.0]),
-    ];
+    println!("{:?}",labels[index]);
+    
 
-    let mut network = Network::new(&[2, 2, 1]);
-    let learning_rate = 0.5;
-    let epochs = 100000;
+    let root_area = BitMapBackend::new("plot.png", (840, 840))
+        .into_drawing_area();
+    root_area.fill(&WHITE)?;
 
-    let mut losses: Vec<f64> = vec![];
+    let (width, height) = (data[0].len(), data.len());
+    
+    // Define the grid layout
+    let cell_width: i32 = 840 / width as i32;
+    let cell_height: i32  = 840 / height as i32;
 
-    //#########################################################################
-    // Training
-    //#########################################################################
+    for (i, row) in data.iter().enumerate() {
+        for (j, &value) in row.iter().enumerate() {
+            let color = HSLColor(0.0,0.0,value as f64/255.0);
 
-    for epoch in 0..epochs {
-        let mut loss_sum = 0.0;
-        for (ref input, ref target) in training_data.iter() {
-            let output = network.forward(input);
-            let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
-            loss_sum += loss;
-            // dl/dout (Gradient of loss for the network) = (output - target)
-            let dL_dout = vec![output[0] - target[0]];
-            network.backward(&dL_dout, learning_rate);
-        }
-        let loss_avg = loss_sum / training_data.len() as f64;
-        losses.push(loss_avg);
-        if epoch % 1000 == 0 {
-            println!("Epoch {}: avg loss = {}", epoch, loss_avg);
+            root_area.draw(&Rectangle::new(
+                [(j as i32 * cell_width, i as i32 * cell_height),
+                ((j + 1) as i32 * cell_width, (i + 1) as i32 * cell_height)],
+                color.filled(),
+            ))?;
         }
     }
 
-    //#########################################################################
-    // Testing
-    //#########################################################################
-
-    for (input, target) in training_data.iter() {
-        let output = network.forward(input);
-        println!(
-            "Input: {:?}, target: {:?} output: {:?}",
-            input, target, output
-        );
-    }
-
-    //#########################################################################
-    // Visualization
-    //#########################################################################
-    // Create a drawing area for the plot
-    let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
-    root.fill(&WHITE)?;
-
-    // Define the chart area and label axes
-    let mut chart = ChartBuilder::on(&root)
-        .caption("Loss over epochs", ("sans-serif", 50).into_font())
-        .margin(20)
-        .x_label_area_size(30)
-        .y_label_area_size(30)
-        .build_cartesian_2d(0.0..losses.len() as f64, 0.0..0.2)?;
-    // .build_cartesian_2d(0.0..losses.len() as f64, (0.0..0.2).log_scale())?;
-
-    // Draw the mesh for the chart
-    chart.configure_mesh().draw()?; // Define the data points for the line
-
-    // Plot the line using the data points
-    chart
-        .draw_series(LineSeries::new(
-            losses.iter().enumerate().map(|(i, &loss)| (i as f64, loss)),
-            &RED,
-        ))?
-        .label("Training Loss")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
-
-    // Add legend to the chart
-    chart
-        .configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
-        .draw()?;
-
-    // Save the plot
-    root.present()?;
-
+    root_area.present()?;
+    println!("Plot saved to plot.png");
     Ok(())
 }
