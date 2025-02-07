@@ -136,6 +136,10 @@ impl Network {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    //#########################################################################
+    // Load data
+    //#########################################################################
+
     // xor training data
     let training_data = vec![
         (vec![0.0, 0.0], vec![0.0]),
@@ -150,7 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut losses: Vec<f64> = vec![];
 
-    // Training loop
+    //#########################################################################
+    // Training
+    //#########################################################################
+
     for epoch in 0..epochs {
         let mut loss_sum = 0.0;
         for (ref input, ref target) in training_data.iter() {
@@ -168,7 +175,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    //#########################################################################
     // Testing
+    //#########################################################################
+
     for (input, target) in training_data.iter() {
         let output = network.forward(input);
         println!(
@@ -177,7 +187,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    //#########################################################################
     // Visualization
+    //#########################################################################
     // Create a drawing area for the plot
     let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
