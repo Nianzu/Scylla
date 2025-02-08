@@ -74,7 +74,6 @@ impl Layer {
     }
 
     fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> Vec<f64> {
-
         let num_neurons = self.biases.len();
 
         // dL/dz = dL/dout * sigmoid_derivative(z)
@@ -89,11 +88,11 @@ impl Layer {
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        let mut dl_dw = vec![0.0; input.len() *num_neurons ];
+        let mut dl_dw = vec![0.0; input.len() * num_neurons];
         for i in 0..num_neurons {
             for j in 0..input.len() {
                 unsafe {
-                    dl_dw[i * input.len()+j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
+                    dl_dw[i * input.len() + j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
                 }
             }
         }
@@ -101,7 +100,8 @@ impl Layer {
         // Update weights and biases using gradient descent
         for i in 0..num_neurons {
             for j in 0..input.len() {
-                self.weights[i*self.weight_width + j] -= learning_rate * dl_dw[i * input.len()+j];
+                self.weights[i * self.weight_width + j] -=
+                    learning_rate * dl_dw[i * input.len() + j];
             }
             self.biases[i] -= learning_rate * dl_db[i];
         }
@@ -112,7 +112,10 @@ impl Layer {
         for j in 0..input.len() {
             let mut sum = 0.0;
             for i in 0..num_neurons {
-                sum += dl_dz[i] * self.weights[i*self.weight_width + j];
+                unsafe {
+                    sum += dl_dz.get_unchecked(i)
+                        * self.weights.get_unchecked(i * self.weight_width + j);
+                }
             }
             dl_dinput[j] = sum;
         }
@@ -362,7 +365,7 @@ fn main() {
     // Visualization
     //#########################################################################
     let _ = draw_loss_over_time(&losses);
-    let data = format!("{:?}, {}", validation_loss ,avg_epoch_time);
+    let data = format!("{:?}, {}", validation_loss, avg_epoch_time);
     fs::write("last_mnist_results", data).expect("Unable to write file");
 }
 
