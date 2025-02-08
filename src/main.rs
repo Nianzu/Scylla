@@ -4,11 +4,12 @@ use std::env::current_exe;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use std::vec;
 
 struct Layer {
-    weights: Vec<Vec<f64>>,
+    weights: Vec<f64>,
+    weight_width: usize,
     biases: Vec<f64>,
 
     last_input: Vec<f64>,
@@ -18,14 +19,11 @@ struct Layer {
 impl Layer {
     fn new(input_size: usize, output_size: usize) -> Self {
         let mut rng = rand::rng();
+        let weight_width = input_size;
 
-        let weights = (0..output_size) // For each node in the current layer
-            .map(|_| {
-                (0..input_size) // And for each input to that node
-                    .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
-                    .collect::<Vec<f64>>()
-            })
-            .collect::<Vec<Vec<f64>>>();
+        let weights = (0..(output_size * input_size)) // For each node in the current layer
+            .map(|_| rng.random_range(-1.0..1.0))
+            .collect::<Vec<f64>>();
 
         let biases = (0..output_size) // For each node
             .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
@@ -33,6 +31,7 @@ impl Layer {
 
         Self {
             weights,
+            weight_width,
             biases,
             last_input: vec![],
             last_output: vec![],
@@ -52,24 +51,32 @@ impl Layer {
     fn forward(&mut self, input: &Vec<f64>) -> Vec<f64> {
         self.last_input = input.clone();
         let mut output = vec![];
+        let num_neurons = self.biases.len();
 
-        for (weights, bias) in self.weights.iter().zip(self.biases.iter()) {
-            // z = sum(w * x) + bias for w,x in weights,input
-            let z_i: f64 = weights
+        for i in 0..num_neurons {
+            let start = i * self.weight_width;
+            let end = start + self.weight_width;
+            let neuron_weights = &self.weights[start..end];
+
+            let z_i: f64 = neuron_weights
                 .iter()
                 .zip(input.iter())
                 .map(|(w, x)| w * x)
                 .sum::<f64>()
-                + bias;
+                + self.biases[i];
 
             let a_i = Self::sigmoid(z_i);
             output.push(a_i);
         }
+
         self.last_output = output.clone();
         output
     }
 
     fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> Vec<f64> {
+
+        let num_neurons = self.biases.len();
+
         // dL/dz = dL/dout * sigmoid_derivative(z)
         let dl_dz: Vec<f64> = dl_dout
             .iter()
@@ -82,17 +89,17 @@ impl Layer {
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        let mut dl_dw = vec![vec![0.0; input.len()]; self.weights.len()];
-        for i in 0..self.weights.len() {
+        let mut dl_dw = vec![vec![0.0; input.len()]; num_neurons];
+        for i in 0..num_neurons {
             for j in 0..input.len() {
                 dl_dw[i][j] = dl_dz[i] * input[j];
             }
         }
 
         // Update weights and biases using gradient descent
-        for i in 0..self.weights.len() {
+        for i in 0..num_neurons {
             for j in 0..input.len() {
-                self.weights[i][j] -= learning_rate * dl_dw[i][j];
+                self.weights[i*self.weight_width + j] -= learning_rate * dl_dw[i][j];
             }
             self.biases[i] -= learning_rate * dl_db[i];
         }
@@ -102,8 +109,8 @@ impl Layer {
         let mut dl_dinput = vec![0.0; input.len()];
         for j in 0..input.len() {
             let mut sum = 0.0;
-            for i in 0..self.weights.len() {
-                sum += dl_dz[i] * self.weights[i][j];
+            for i in 0..num_neurons {
+                sum += dl_dz[i] * self.weights[i*self.weight_width + j];
             }
             dl_dinput[j] = sum;
         }
@@ -280,14 +287,14 @@ fn main() {
     // Training
     let dataset: Vec<Vec<Vec<f64>>> =
         load_dataset_mnist_images("datasets/mnist/train-images.idx3-ubyte");
-    let flat_dataset = flatten_images(dataset.clone());
+    let flat_dataset: Vec<Vec<f64>> = flatten_images(dataset.clone());
     let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/train-labels.idx1-ubyte");
     let flat_labels = flatten_labels(labels.clone());
 
     // Validation
     let validation_dataset: Vec<Vec<Vec<f64>>> =
         load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
-    let validation_flat_dataset = flatten_images(validation_dataset.clone());
+    let validation_flat_dataset: Vec<Vec<f64>> = flatten_images(validation_dataset.clone());
     let validation_labels: Vec<u8> =
         load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
     let validation_flat_labels = flatten_labels(validation_labels.clone());
@@ -305,6 +312,7 @@ fn main() {
     let start = SystemTime::now();
     let mut dt = SystemTime::now().duration_since(start).expect("Error");
     let mut epoch = 0;
+    let mut avg_epoch_time = 0.0;
 
     while dt.as_millis() < 10_000 {
         let mut loss_sum = 0.0;
@@ -334,6 +342,7 @@ fn main() {
             );
         }
     }
+    avg_epoch_time = dt.as_millis() as f64 / epoch as f64;
 
     //#########################################################################
     // Testing
@@ -351,13 +360,12 @@ fn main() {
     // Visualization
     //#########################################################################
     let _ = draw_loss_over_time(&losses);
-    let data = format!("{:?}", validation_loss);
+    let data = format!("{:?}, {}", validation_loss ,avg_epoch_time);
     fs::write("last_mnist_results", data).expect("Unable to write file");
 }
 
 // fn main() {
 //     let mut losses: Vec<f64> = vec![];
-
 
 //     //#########################################################################
 //     // Load data
