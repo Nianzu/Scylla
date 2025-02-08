@@ -14,7 +14,6 @@ struct Layer {
 
     last_input: Vec<f64>,
     last_output: Vec<f64>,
-    grad_buffer: Vec<f64>,
     dl_dinput: Vec<f64>,
 }
 
@@ -31,9 +30,7 @@ impl Layer {
             .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
             .collect::<Vec<f64>>();
 
-
-            let mut grad_buffer = vec![0.0; input_size * output_size];
-            let mut dl_dinput = vec![0.0; input_size];
+        let dl_dinput = vec![0.0; input_size];
 
         Self {
             weights,
@@ -41,7 +38,6 @@ impl Layer {
             biases,
             last_input: vec![],
             last_output: vec![],
-            grad_buffer,
             dl_dinput,
         }
     }
@@ -96,21 +92,18 @@ impl Layer {
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        for i in 0..num_neurons {
-            for j in 0..input.len() {
-                unsafe {
-                    self.grad_buffer[i * input.len() + j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
-                }
-            }
-        }
 
         // Update weights and biases using gradient descent
         for i in 0..num_neurons {
             for j in 0..input.len() {
-                self.weights[i * self.weight_width + j] -=
-                    learning_rate * self.grad_buffer[i * input.len() + j];
+                unsafe {
+                    self.weights[i * self.weight_width + j] -=
+                        learning_rate * dl_dz.get_unchecked(i) * input.get_unchecked(j);
+                }
             }
-            self.biases[i] -= learning_rate * dl_db[i];
+            unsafe {
+                self.biases[i] -= learning_rate * dl_db.get_unchecked(i);
+            }
         }
 
         // Compute and return dL/dx for previous layer
@@ -295,11 +288,18 @@ fn main() {
     //#########################################################################
     // Load data
     //#########################################################################
+
     // Training
     let dataset: Vec<Vec<Vec<f64>>> =
         load_dataset_mnist_images("datasets/mnist/train-images.idx3-ubyte");
-    let flat_dataset: Vec<Vec<f64>> = flatten_images(dataset.clone());
     let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/train-labels.idx1-ubyte");
+
+    // Profiling
+    // let dataset: Vec<Vec<Vec<f64>>> =
+    //     load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
+    // let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+
+    let flat_dataset: Vec<Vec<f64>> = flatten_images(dataset.clone());
     let flat_labels = flatten_labels(labels.clone());
 
     // Validation
@@ -315,6 +315,10 @@ fn main() {
     //#########################################################################
 
     let mut network = Network::new(&[784, 128, 10]);
+
+    // Profiling
+    // let mut network = Network::new(&[784, 10]);
+
     let learning_rate = 0.5;
 
     //#########################################################################
