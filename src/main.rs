@@ -1,5 +1,6 @@
 use plotters::prelude::*;
 use rand::Rng;
+use std::env::current_exe;
 use std::fs::File;
 use std::io::Read;
 use std::vec;
@@ -148,6 +149,23 @@ fn normalize_images(input: Vec<Vec<Vec<u8>>>) -> Vec<Vec<Vec<f64>>> {
         .collect()
 }
 
+fn flatten_images(input: Vec<Vec<Vec<f64>>>) -> Vec<Vec<f64>> {
+    input
+        .into_iter()
+        .map(|vec1| vec1.into_iter().flatten().collect())
+        .collect()
+}
+
+fn flatten_labels(input: Vec<u8>) -> Vec<Vec<f64>> {
+    let mut output = vec![];
+    for item in input {
+        let mut current_vec = vec![0.0; 10];
+        current_vec[item as usize] = 1.0;
+        output.push(current_vec);
+    }
+    output
+}
+
 // https://github.com/R34ll/mnist_rust
 fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<f64>>> {
     let mut file = File::open(path).expect("File non find");
@@ -241,6 +259,15 @@ fn draw_loss_over_time(losses: Vec<f64>) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+fn rmse(current: &Vec<f64>, target: &Vec<f64>) -> f64 {
+    let n = current.len();
+    let sum_squared_error: f64 = current
+        .iter()
+        .zip(target.iter())
+        .map(|(c, t)| (c - t).powi(2))
+        .sum();
+    (sum_squared_error / n as f64).sqrt()
+}
 
 fn main() {
     let mut losses: Vec<f64> = vec![];
@@ -248,27 +275,19 @@ fn main() {
     //#########################################################################
     // Load data
     //#########################################################################
-
-    // xor training data
-    let training_data = vec![
-        (vec![0.0, 0.0], vec![0.0]),
-        (vec![0.0, 1.0], vec![1.0]),
-        (vec![1.0, 0.0], vec![1.0]),
-        (vec![1.0, 1.0], vec![0.0]),
-    ];
-
-    //  MNIST
     let dataset: Vec<Vec<Vec<f64>>> =
         load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
-    let _labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+    let flat_dataset = flatten_images(dataset.clone());
+    let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+    let flat_labels = flatten_labels(labels.clone());
 
     //#########################################################################
     // Create network
     //#########################################################################
 
-    let mut network = Network::new(&[2, 2, 1]);
+    let mut network = Network::new(&[784, 50, 10]);
     let learning_rate = 0.5;
-    let epochs = 10000;
+    let epochs = 100;
 
     //#########################################################################
     // Training
@@ -276,17 +295,18 @@ fn main() {
 
     for epoch in 0..epochs {
         let mut loss_sum = 0.0;
-        for (ref input, ref target) in training_data.iter() {
-            let output = network.forward(input);
-            let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
+        for i in 0..flat_dataset.len() {
+            let output = network.forward(&flat_dataset[i]);
+            let loss = rmse(&output, &flat_labels[i]); // mean squared error
             loss_sum += loss;
+
             // dl/dout (Gradient of loss for the network) = (output - target)
-            let dl_dout = vec![output[0] - target[0]];
+            let dl_dout = output.into_iter().zip(flat_labels[i].clone().into_iter()).map(|(o,t)| (o-t)).collect();
             network.backward(&dl_dout, learning_rate);
         }
-        let loss_avg = loss_sum / training_data.len() as f64;
+        let loss_avg = loss_sum / flat_dataset.len() as f64;
         losses.push(loss_avg);
-        if epoch % 1000 == 0 {
+        if epoch % 10 == 0 {
             println!("Epoch {}: avg loss = {}", epoch, loss_avg);
         }
     }
@@ -295,13 +315,13 @@ fn main() {
     // Testing
     //#########################################################################
 
-    for (input, target) in training_data.iter() {
-        let output = network.forward(input);
-        println!(
-            "Input: {:?}, target: {:?} output: {:?}",
-            input, target, output
-        );
-    }
+    // for (input, target) in training_data.iter() {
+    //     let output = network.forward(input);
+    //     println!(
+    //         "Input: {:?}, target: {:?} output: {:?}",
+    //         input, target, output
+    //     );
+    // }
 
     //#########################################################################
     // Visualization
@@ -312,3 +332,65 @@ fn main() {
     let data: Vec<Vec<f64>> = dataset[0].clone();
     let _ = draw_mnist(data);
 }
+
+// fn main() {
+//     let mut losses: Vec<f64> = vec![];
+
+//     //#########################################################################
+//     // Load data
+//     //#########################################################################
+
+//     // xor training data
+//     let training_data = vec![
+//         (vec![0.0, 0.0], vec![0.0]),
+//         (vec![0.0, 1.0], vec![1.0]),
+//         (vec![1.0, 0.0], vec![1.0]),
+//         (vec![1.0, 1.0], vec![0.0]),
+//     ];
+
+//     //#########################################################################
+//     // Create network
+//     //#########################################################################
+
+//     let mut network = Network::new(&[2, 2, 1]);
+//     let learning_rate = 0.5;
+//     let epochs = 10000;
+
+//     //#########################################################################
+//     // Training
+//     //#########################################################################
+
+//     for epoch in 0..epochs {
+//         let mut loss_sum = 0.0;
+//         for (ref input, ref target) in training_data.iter() {
+//             let output = network.forward(input);
+//             let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
+//             loss_sum += loss;
+//             // dl/dout (Gradient of loss for the network) = (output - target)
+//             let dl_dout = vec![output[0] - target[0]];
+//             network.backward(&dl_dout, learning_rate);
+//         }
+//         let loss_avg = loss_sum / training_data.len() as f64;
+//         losses.push(loss_avg);
+//         if epoch % 1000 == 0 {
+//             println!("Epoch {}: avg loss = {}", epoch, loss_avg);
+//         }
+//     }
+
+//     //#########################################################################
+//     // Testing
+//     //#########################################################################
+
+//     for (input, target) in training_data.iter() {
+//         let output = network.forward(input);
+//         println!(
+//             "Input: {:?}, target: {:?} output: {:?}",
+//             input, target, output
+//         );
+//     }
+
+//     //#########################################################################
+//     // Visualization
+//     //#########################################################################
+//     let _ = draw_loss_over_time(losses);
+// }
