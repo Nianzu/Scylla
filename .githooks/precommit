@@ -1,0 +1,30 @@
+#!/bin/bash
+# post-commit Git hook to run code, read score, and log it in performance.csv
+
+# 1. Run the code.
+# This assumes that running 'cargo run --release' generates a file called score.txt.
+# You might want to adjust the command if you have a different setup.
+cargo run --release
+
+# 2. Read the score from score.txt.
+if [ ! -f last_mnist_results]; then
+  echo "score.txt not found! Exiting hook."
+  exit 1
+fi
+score=$(cat last_mnist_results)
+
+# 3. Get the current commit hash and current timestamp.
+commit_hash=$(git rev-parse HEAD)
+timestamp=$(date +'%Y-%m-%d %H:%M:%S')
+
+# 4. Append the data to performance.csv.
+csv_file="performance.csv"
+# If the CSV does not exist, create it with headers.
+if [ ! -f "$csv_file" ]; then
+  echo "commit,timestamp,score" > "$csv_file"
+fi
+
+# Append a new row.
+echo "$commit_hash,$timestamp,$score" >> "$csv_file"
+
+echo "Performance data updated in $csv_file"

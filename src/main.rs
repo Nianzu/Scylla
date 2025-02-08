@@ -1,8 +1,10 @@
 use plotters::prelude::*;
 use rand::Rng;
 use std::env::current_exe;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec;
 
 struct Layer {
@@ -221,7 +223,7 @@ fn draw_mnist(image: Vec<Vec<f64>>) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn draw_loss_over_time(losses: Vec<f64>) -> Result<(), Box<dyn std::error::Error>> {
+fn draw_loss_over_time(losses: &Vec<f64>) -> Result<(), Box<dyn std::error::Error>> {
     // Create a drawing area for the plot
     let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -275,11 +277,20 @@ fn main() {
     //#########################################################################
     // Load data
     //#########################################################################
+    // Training
     let dataset: Vec<Vec<Vec<f64>>> =
-        load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
+        load_dataset_mnist_images("datasets/mnist/train-images.idx3-ubyte");
     let flat_dataset = flatten_images(dataset.clone());
-    let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+    let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/train-labels.idx1-ubyte");
     let flat_labels = flatten_labels(labels.clone());
+
+    // Validation
+    let validation_dataset: Vec<Vec<Vec<f64>>> =
+        load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
+    let validation_flat_dataset = flatten_images(validation_dataset.clone());
+    let validation_labels: Vec<u8> =
+        load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+    let validation_flat_labels = flatten_labels(validation_labels.clone());
 
     //#########################################################################
     // Create network
@@ -287,13 +298,15 @@ fn main() {
 
     let mut network = Network::new(&[784, 128, 10]);
     let learning_rate = 0.5;
-    let epochs = 10;
 
     //#########################################################################
     // Training
     //#########################################################################
+    let start = SystemTime::now();
+    let mut dt = SystemTime::now().duration_since(start).expect("Error");
+    let mut epoch = 0;
 
-    for epoch in 0..epochs {
+    while dt.as_millis() < 10_000 {
         let mut loss_sum = 0.0;
         for i in 0..flat_dataset.len() {
             let output = network.forward(&flat_dataset[i]);
@@ -301,32 +314,45 @@ fn main() {
             loss_sum += loss;
 
             // dl/dout (Gradient of loss for the network) = (output - target)
-            let dl_dout = output.into_iter().zip(flat_labels[i].clone().into_iter()).map(|(o,t)| (o-t)).collect();
+            let dl_dout = output
+                .into_iter()
+                .zip(flat_labels[i].clone().into_iter())
+                .map(|(o, t)| (o - t))
+                .collect();
             network.backward(&dl_dout, learning_rate);
         }
         let loss_avg = loss_sum / flat_dataset.len() as f64;
         losses.push(loss_avg);
+        dt = SystemTime::now().duration_since(start).expect("Error");
+        epoch += 1;
         if epoch % 1 == 0 {
-            println!("Epoch {}: avg loss = {}", epoch, loss_avg);
+            println!(
+                "Epoch {}, Total time: {}: avg loss = {}",
+                epoch,
+                dt.as_millis(),
+                loss_avg
+            );
         }
     }
 
     //#########################################################################
     // Testing
     //#########################################################################
-
-    // for (input, target) in training_data.iter() {
-    //     let output = network.forward(input);
-    //     println!(
-    //         "Input: {:?}, target: {:?} output: {:?}",
-    //         input, target, output
-    //     );
-    // }
+    let mut validation_loss_sum = 0.0;
+    for i in 0..validation_flat_dataset.len() {
+        let output = network.forward(&validation_flat_dataset[i]);
+        let loss = rmse(&output, &validation_flat_labels[i]);
+        validation_loss_sum += loss;
+    }
+    let validation_loss = validation_loss_sum / validation_flat_dataset.len() as f64;
+    println!("Validation loss: {}", validation_loss);
 
     //#########################################################################
     // Visualization
     //#########################################################################
-    let _ = draw_loss_over_time(losses);
+    let _ = draw_loss_over_time(&losses);
+    let data = format!("{:?}", validation_loss);
+    fs::write("last_mnist_results", data).expect("Unable to write file");
 
     //  MNIST
     let data: Vec<Vec<f64>> = dataset[0].clone();
