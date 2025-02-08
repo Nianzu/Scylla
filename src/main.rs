@@ -85,14 +85,16 @@ impl Layer {
             .collect();
 
         // dL/db (Gradient for the bias) = dL/dz
-        let dl_db = dl_dz.to_vec();
+        let dl_db = &dl_dz;
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
         let mut dl_dw = vec![vec![0.0; input.len()]; num_neurons];
         for i in 0..num_neurons {
             for j in 0..input.len() {
-                dl_dw[i][j] = dl_dz[i] * input[j];
+                unsafe {
+                    dl_dw[i][j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
+                }
             }
         }
 
