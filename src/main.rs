@@ -89,11 +89,11 @@ impl Layer {
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        let mut dl_dw = vec![vec![0.0; input.len()]; num_neurons];
+        let mut dl_dw = vec![0.0; input.len() *num_neurons ];
         for i in 0..num_neurons {
             for j in 0..input.len() {
                 unsafe {
-                    dl_dw[i][j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
+                    dl_dw[i * input.len()+j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
                 }
             }
         }
@@ -101,7 +101,7 @@ impl Layer {
         // Update weights and biases using gradient descent
         for i in 0..num_neurons {
             for j in 0..input.len() {
-                self.weights[i*self.weight_width + j] -= learning_rate * dl_dw[i][j];
+                self.weights[i*self.weight_width + j] -= learning_rate * dl_dw[i * input.len()+j];
             }
             self.biases[i] -= learning_rate * dl_db[i];
         }
