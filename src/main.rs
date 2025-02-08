@@ -14,6 +14,7 @@ struct Layer {
 
     last_input: Vec<f64>,
     last_output: Vec<f64>,
+    grad_buffer: Vec<f64>,
 }
 
 impl Layer {
@@ -29,12 +30,16 @@ impl Layer {
             .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
             .collect::<Vec<f64>>();
 
+
+        let mut grad_buffer = vec![0.0; input_size * output_size];
+
         Self {
             weights,
             weight_width,
             biases,
             last_input: vec![],
             last_output: vec![],
+            grad_buffer,
         }
     }
 
@@ -88,11 +93,10 @@ impl Layer {
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        let mut dl_dw = vec![0.0; input.len() * num_neurons];
         for i in 0..num_neurons {
             for j in 0..input.len() {
                 unsafe {
-                    dl_dw[i * input.len() + j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
+                    self.grad_buffer[i * input.len() + j] = dl_dz.get_unchecked(i) * input.get_unchecked(j);
                 }
             }
         }
@@ -101,7 +105,7 @@ impl Layer {
         for i in 0..num_neurons {
             for j in 0..input.len() {
                 self.weights[i * self.weight_width + j] -=
-                    learning_rate * dl_dw[i * input.len() + j];
+                    learning_rate * self.grad_buffer[i * input.len() + j];
             }
             self.biases[i] -= learning_rate * dl_db[i];
         }

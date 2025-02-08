@@ -29,6 +29,6 @@ echo "$commit_hash,$timestamp,$score" >> "$csv_file"
 echo "Performance data updated in $csv_file"
 
 # 5. Stage the updated CSV and score file for the current commit.
-git add "$csv_file" last_mnist_results
+git add "$csv_file" last_mnist_results line_plot.png
 
 exit 0
