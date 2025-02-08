@@ -15,6 +15,7 @@ struct Layer {
     last_input: Vec<f64>,
     last_output: Vec<f64>,
     grad_buffer: Vec<f64>,
+    dl_dinput: Vec<f64>,
 }
 
 impl Layer {
@@ -31,7 +32,8 @@ impl Layer {
             .collect::<Vec<f64>>();
 
 
-        let mut grad_buffer = vec![0.0; input_size * output_size];
+            let mut grad_buffer = vec![0.0; input_size * output_size];
+            let mut dl_dinput = vec![0.0; input_size];
 
         Self {
             weights,
@@ -40,6 +42,7 @@ impl Layer {
             last_input: vec![],
             last_output: vec![],
             grad_buffer,
+            dl_dinput,
         }
     }
 
@@ -78,7 +81,7 @@ impl Layer {
         output
     }
 
-    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> Vec<f64> {
+    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> &Vec<f64> {
         let num_neurons = self.biases.len();
 
         // dL/dz = dL/dout * sigmoid_derivative(z)
@@ -112,7 +115,6 @@ impl Layer {
 
         // Compute and return dL/dx for previous layer
         // dL/dx = sum(dL/dz * w) for w in weights[i]
-        let mut dl_dinput = vec![0.0; input.len()];
         for j in 0..input.len() {
             let mut sum = 0.0;
             for i in 0..num_neurons {
@@ -121,9 +123,9 @@ impl Layer {
                         * self.weights.get_unchecked(i * self.weight_width + j);
                 }
             }
-            dl_dinput[j] = sum;
+            self.dl_dinput[j] = sum;
         }
-        dl_dinput
+        &self.dl_dinput
     }
 }
 
@@ -149,7 +151,7 @@ impl Network {
     }
 
     fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) {
-        let mut grad = dl_dout.clone();
+        let mut grad = dl_dout;
         for layer in self.layers.iter_mut().rev() {
             grad = layer.backward(&grad, learning_rate);
         }
