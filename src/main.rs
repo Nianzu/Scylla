@@ -285,9 +285,9 @@ fn main() {
     // Create network
     //#########################################################################
 
-    let mut network = Network::new(&[784, 50, 10]);
+    let mut network = Network::new(&[784, 128, 10]);
     let learning_rate = 0.5;
-    let epochs = 100;
+    let epochs = 10;
 
     //#########################################################################
     // Training
@@ -306,7 +306,7 @@ fn main() {
         }
         let loss_avg = loss_sum / flat_dataset.len() as f64;
         losses.push(loss_avg);
-        if epoch % 10 == 0 {
+        if epoch % 1 == 0 {
             println!("Epoch {}: avg loss = {}", epoch, loss_avg);
         }
     }
