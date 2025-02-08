@@ -353,14 +353,11 @@ fn main() {
     let _ = draw_loss_over_time(&losses);
     let data = format!("{:?}", validation_loss);
     fs::write("last_mnist_results", data).expect("Unable to write file");
-
-    //  MNIST
-    let data: Vec<Vec<f64>> = dataset[0].clone();
-    let _ = draw_mnist(data);
 }
 
 // fn main() {
 //     let mut losses: Vec<f64> = vec![];
+
 
 //     //#########################################################################
 //     // Load data
