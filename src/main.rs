@@ -2,7 +2,7 @@ use plotters::prelude::*;
 use rand::Rng;
 use std::fs::File;
 use std::io::Read;
-use std::{os::linux::net, process::Output, vec};
+use std::{vec};
 
 struct Layer {
     weights: Vec<Vec<f64>>,
@@ -14,18 +14,18 @@ struct Layer {
 
 impl Layer {
     fn new(input_size: usize, output_size: usize) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let weights = (0..output_size) // For each node in the current layer
             .map(|_| {
                 (0..input_size) // And for each input to that node
-                    .map(|_| rng.gen_range(-1.0..1.0)) // Select a random number in our seed range
+                    .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
                     .collect::<Vec<f64>>()
             })
             .collect::<Vec<Vec<f64>>>();
 
         let biases = (0..output_size) // For each node
-            .map(|_| rng.gen_range(-1.0..1.0)) // Select a random number in our seed range
+            .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
             .collect::<Vec<f64>>();
 
         Self {
@@ -66,45 +66,45 @@ impl Layer {
         output
     }
 
-    fn backward(&mut self, dL_dout: &Vec<f64>, learning_rate: f64) -> Vec<f64> {
+    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> Vec<f64> {
         // dL/dz = dL/dout * sigmoid_derivative(z)
-        let dL_dz: Vec<f64> = dL_dout
+        let dl_dz: Vec<f64> = dl_dout
             .iter()
             .zip(self.last_output.iter())
             .map(|(&d, &a)| d * Self::sigmoid_derivative(a))
             .collect();
 
         // dL/db (Gradient for the bias) = dL/dz
-        let dL_db = dL_dz.to_vec();
+        let dl_db = dl_dz.to_vec();
 
         // dL/dw (Gradient for the weight) = dL/dz * x for
         let input = &self.last_input;
-        let mut dL_dw = vec![vec![0.0; input.len()]; self.weights.len()];
+        let mut dl_dw = vec![vec![0.0; input.len()]; self.weights.len()];
         for i in 0..self.weights.len() {
             for j in 0..input.len() {
-                dL_dw[i][j] = dL_dz[i] * input[j];
+                dl_dw[i][j] = dl_dz[i] * input[j];
             }
         }
 
         // Update weights and biases using gradient descent
         for i in 0..self.weights.len() {
             for j in 0..input.len() {
-                self.weights[i][j] -= learning_rate * dL_dw[i][j];
+                self.weights[i][j] -= learning_rate * dl_dw[i][j];
             }
-            self.biases[i] -= learning_rate * dL_db[i];
+            self.biases[i] -= learning_rate * dl_db[i];
         }
 
         // Compute and return dL/dx for previous layer
         // dL/dx = sum(dL/dz * w) for w in weights[i]
-        let mut dL_dinput = vec![0.0; input.len()];
+        let mut dl_dinput = vec![0.0; input.len()];
         for j in 0..input.len() {
             let mut sum = 0.0;
             for i in 0..self.weights.len() {
-                sum += dL_dz[i] * self.weights[i][j];
+                sum += dl_dz[i] * self.weights[i][j];
             }
-            dL_dinput[j] = sum;
+            dl_dinput[j] = sum;
         }
-        dL_dinput
+        dl_dinput
     }
 }
 
@@ -129,8 +129,8 @@ impl Network {
         output
     }
 
-    fn backward(&mut self, dL_dout: &Vec<f64>, learning_rate: f64) {
-        let mut grad = dL_dout.clone();
+    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) {
+        let mut grad = dl_dout.clone();
         for layer in self.layers.iter_mut().rev() {
             grad = layer.backward(&grad, learning_rate);
         }
@@ -144,7 +144,7 @@ fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<u8>>> {
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
     data.drain(0..16); // https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
-    let mut dataset: Vec<Vec<Vec<u8>>> = data
+    let dataset: Vec<Vec<Vec<u8>>> = data
         .chunks(784)
         .map(|chunk| chunk.chunks(28).map(|s| s.into()).collect())
         .collect();
@@ -159,7 +159,7 @@ fn load_dataset_mnist_label(path: &str) -> Vec<u8> {
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
     data.drain(0..8);
-    let mut labels: Vec<u8> = data.iter_mut().map(|&mut l| l as u8).collect();
+    let labels: Vec<u8> = data.iter_mut().map(|&mut l| l as u8).collect();
     println!("Labels in dataset: {}", labels.len());
     labels
 }
@@ -248,7 +248,7 @@ fn main() {
     //  MNIST
     let dataset: Vec<Vec<Vec<u8>>> =
         load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
-    let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
+    let _labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
 
     //#########################################################################
     // Create network
@@ -269,8 +269,8 @@ fn main() {
             let loss = 0.5 * (output[0] - target[0]).powi(2); // mean squared error
             loss_sum += loss;
             // dl/dout (Gradient of loss for the network) = (output - target)
-            let dL_dout = vec![output[0] - target[0]];
-            network.backward(&dL_dout, learning_rate);
+            let dl_dout = vec![output[0] - target[0]];
+            network.backward(&dl_dout, learning_rate);
         }
         let loss_avg = loss_sum / training_data.len() as f64;
         losses.push(loss_avg);
@@ -294,9 +294,9 @@ fn main() {
     //#########################################################################
     // Visualization
     //#########################################################################
-    draw_loss_over_time(losses);
+    let _ = draw_loss_over_time(losses);
 
     //  MNIST
     let data: Vec<Vec<u8>> = dataset[0].clone();
-    draw_mnist(data);
+    let _ = draw_mnist(data);
 }
