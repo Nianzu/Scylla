@@ -2,7 +2,7 @@ use plotters::prelude::*;
 use rand::Rng;
 use std::fs::File;
 use std::io::Read;
-use std::{vec};
+use std::vec;
 
 struct Layer {
     weights: Vec<Vec<f64>>,
@@ -137,8 +137,19 @@ impl Network {
     }
 }
 
+fn normalize_images(input: Vec<Vec<Vec<u8>>>) -> Vec<Vec<Vec<f64>>> {
+    input
+        .into_iter()
+        .map(|vec1| {
+            vec1.into_iter()
+                .map(|vec2| vec2.into_iter().map(|item| item as f64 / 255.0).collect())
+                .collect()
+        })
+        .collect()
+}
+
 // https://github.com/R34ll/mnist_rust
-fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<u8>>> {
+fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<f64>>> {
     let mut file = File::open(path).expect("File non find");
 
     let mut data = Vec::new();
@@ -149,7 +160,7 @@ fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<u8>>> {
         .map(|chunk| chunk.chunks(28).map(|s| s.into()).collect())
         .collect();
     println!("Images in dataset: {}", dataset.len());
-    dataset
+    normalize_images(dataset)
 }
 
 // https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
@@ -164,7 +175,7 @@ fn load_dataset_mnist_label(path: &str) -> Vec<u8> {
     labels
 }
 
-fn draw_mnist(image: Vec<Vec<u8>>) -> Result<(), Box<dyn std::error::Error>> {
+fn draw_mnist(image: Vec<Vec<f64>>) -> Result<(), Box<dyn std::error::Error>> {
     let root_area = BitMapBackend::new("plot.png", (840, 840)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
@@ -176,7 +187,7 @@ fn draw_mnist(image: Vec<Vec<u8>>) -> Result<(), Box<dyn std::error::Error>> {
 
     for (i, row) in image.iter().enumerate() {
         for (j, &value) in row.iter().enumerate() {
-            let color = HSLColor(0.0, 0.0, value as f64 / 255.0);
+            let color = HSLColor(0.0, 0.0, value);
 
             root_area.draw(&Rectangle::new(
                 [
@@ -230,6 +241,7 @@ fn draw_loss_over_time(losses: Vec<f64>) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+
 fn main() {
     let mut losses: Vec<f64> = vec![];
 
@@ -246,7 +258,7 @@ fn main() {
     ];
 
     //  MNIST
-    let dataset: Vec<Vec<Vec<u8>>> =
+    let dataset: Vec<Vec<Vec<f64>>> =
         load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
     let _labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
 
@@ -297,6 +309,6 @@ fn main() {
     let _ = draw_loss_over_time(losses);
 
     //  MNIST
-    let data: Vec<Vec<u8>> = dataset[0].clone();
+    let data: Vec<Vec<f64>> = dataset[0].clone();
     let _ = draw_mnist(data);
 }
