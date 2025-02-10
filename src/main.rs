@@ -1,11 +1,8 @@
-use core::net;
 use plotters::prelude::*;
 use rand::Rng;
-use std::env::current_exe;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::process::Output;
 use std::time::SystemTime;
 use std::vec;
 
@@ -386,7 +383,7 @@ fn main() {
     //#########################################################################
 
     let mut network = Network::new(&[784, 128, 10]);
-    let learning_rate = 0.5;
+    let learning_rate = 0.1;
 
     //#########################################################################
     // Training
