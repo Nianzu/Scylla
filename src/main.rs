@@ -7,13 +7,13 @@ use std::time::SystemTime;
 use std::vec;
 
 struct Layer {
-    weights: Vec<f64>,
+    weights: Vec<f32>,
     weight_width: usize,
-    biases: Vec<f64>,
+    biases: Vec<f32>,
 
-    last_input: Vec<f64>,
-    last_output: Vec<f64>,
-    dl_dinput: Vec<f64>,
+    last_input: Vec<f32>,
+    last_output: Vec<f32>,
+    dl_dinput: Vec<f32>,
 }
 
 impl Layer {
@@ -23,11 +23,11 @@ impl Layer {
 
         let weights = (0..(output_size * input_size)) // For each node in the current layer
             .map(|_| rng.random_range(-1.0..1.0))
-            .collect::<Vec<f64>>();
+            .collect::<Vec<f32>>();
 
         let biases = (0..output_size) // For each node
             .map(|_| rng.random_range(-1.0..1.0)) // Select a random number in our seed range
-            .collect::<Vec<f64>>();
+            .collect::<Vec<f32>>();
 
         let dl_dinput = vec![0.0; input_size];
 
@@ -42,16 +42,16 @@ impl Layer {
     }
 
     // https://en.wikipedia.org/wiki/Sigmoid_function
-    fn sigmoid(x: f64) -> f64 {
+    fn sigmoid(x: f32) -> f32 {
         1.0 / (1.0 + (-x).exp())
     }
 
     // https://math.stackexchange.com/questions/78575/derivative-of-sigmoid-function-sigma-x-frac11e-x
-    fn sigmoid_derivative(sigmoid_x: f64) -> f64 {
+    fn sigmoid_derivative(sigmoid_x: f32) -> f32 {
         sigmoid_x * (1.0 - sigmoid_x)
     }
 
-    fn forward(&mut self, input: &Vec<f64>) -> Vec<f64> {
+    fn forward(&mut self, input: &Vec<f32>) -> Vec<f32> {
         self.last_input = input.clone();
         let mut output = vec![];
         let num_neurons = self.biases.len();
@@ -61,11 +61,11 @@ impl Layer {
             let end = start + self.weight_width;
             let neuron_weights = &self.weights[start..end];
 
-            let z_i: f64 = neuron_weights
+            let z_i: f32 = neuron_weights
                 .iter()
                 .zip(input.iter())
                 .map(|(w, x)| w * x)
-                .sum::<f64>()
+                .sum::<f32>()
                 + self.biases[i];
 
             let a_i = Self::sigmoid(z_i);
@@ -76,11 +76,11 @@ impl Layer {
         output
     }
 
-    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) -> &Vec<f64> {
+    fn backward(&mut self, dl_dout: &Vec<f32>, learning_rate: f32) -> &Vec<f32> {
         let num_neurons = self.biases.len();
 
         // dL/dz = dL/dout * sigmoid_derivative(z)
-        let dl_dz: Vec<f64> = dl_dout
+        let dl_dz: Vec<f32> = dl_dout
             .iter()
             .zip(self.last_output.iter())
             .map(|(&d, &a)| d * Self::sigmoid_derivative(a))
@@ -134,7 +134,7 @@ impl Network {
         Self { layers }
     }
 
-    fn forward(&mut self, input: &Vec<f64>) -> Vec<f64> {
+    fn forward(&mut self, input: &Vec<f32>) -> Vec<f32> {
         let mut output = input.clone();
         for layer in self.layers.iter_mut() {
             output = layer.forward(&output)
@@ -142,7 +142,7 @@ impl Network {
         output
     }
 
-    fn backward(&mut self, dl_dout: &Vec<f64>, learning_rate: f64) {
+    fn backward(&mut self, dl_dout: &Vec<f32>, learning_rate: f32) {
         let mut grad = dl_dout;
         for layer in self.layers.iter_mut().rev() {
             grad = layer.backward(&grad, learning_rate);
@@ -151,10 +151,10 @@ impl Network {
 
     fn train(
         &mut self,
-        dataset: &Vec<Vec<f64>>,
-        labels: &Vec<Vec<f64>>,
-        learning_rate: f64,
-    ) -> f64 {
+        dataset: &Vec<Vec<f32>>,
+        labels: &Vec<Vec<f32>>,
+        learning_rate: f32,
+    ) -> f32 {
         let mut loss_sum = 0.0;
         for i in 0..dataset.len() {
             let output = self.forward(&dataset[i]);
@@ -164,20 +164,20 @@ impl Network {
             let dl_dout = network_gradient_loss(&output, &labels[i]);
             self.backward(&dl_dout, learning_rate);
         }
-        loss_sum / dataset.len() as f64
+        loss_sum / dataset.len() as f32
     }
 
-    fn validation_loss(&mut self, dataset: &Vec<Vec<f64>>, labels: &Vec<Vec<f64>>) -> f64 {
+    fn validation_loss(&mut self, dataset: &Vec<Vec<f32>>, labels: &Vec<Vec<f32>>) -> f32 {
         let mut validation_loss_sum = 0.0;
         for i in 0..dataset.len() {
             let output = self.forward(&dataset[i]);
             let loss = rmse(&output, &labels[i]);
             validation_loss_sum += loss;
         }
-        validation_loss_sum / dataset.len() as f64
+        validation_loss_sum / dataset.len() as f32
     }
 
-    fn accuracy(&mut self, dataset: &Vec<Vec<f64>>, labels: &Vec<Vec<f64>>) -> f64 {
+    fn accuracy(&mut self, dataset: &Vec<Vec<f32>>, labels: &Vec<Vec<f32>>) -> f32 {
         let mut accuracy = 0.0;
         for i in 0..dataset.len() {
             let output = self.forward(&dataset[i]);
@@ -198,29 +198,29 @@ impl Network {
                 accuracy += 1.0;
             }
         }
-        accuracy / dataset.len() as f64
+        accuracy / dataset.len() as f32
     }
 }
 
-fn normalize_images(input: Vec<Vec<Vec<u8>>>) -> Vec<Vec<Vec<f64>>> {
+fn normalize_images(input: Vec<Vec<Vec<u8>>>) -> Vec<Vec<Vec<f32>>> {
     input
         .into_iter()
         .map(|vec1| {
             vec1.into_iter()
-                .map(|vec2| vec2.into_iter().map(|item| item as f64 / 255.0).collect())
+                .map(|vec2| vec2.into_iter().map(|item| item as f32 / 255.0).collect())
                 .collect()
         })
         .collect()
 }
 
-fn flatten_images(input: Vec<Vec<Vec<f64>>>) -> Vec<Vec<f64>> {
+fn flatten_images(input: Vec<Vec<Vec<f32>>>) -> Vec<Vec<f32>> {
     input
         .into_iter()
         .map(|vec1| vec1.into_iter().flatten().collect())
         .collect()
 }
 
-fn flatten_labels(input: Vec<u8>) -> Vec<Vec<f64>> {
+fn flatten_labels(input: Vec<u8>) -> Vec<Vec<f32>> {
     let mut output = vec![];
     for item in input {
         let mut current_vec = vec![0.0; 10];
@@ -231,7 +231,7 @@ fn flatten_labels(input: Vec<u8>) -> Vec<Vec<f64>> {
 }
 
 // https://github.com/R34ll/mnist_rust
-fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<f64>>> {
+fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<f32>>> {
     let mut file = File::open(path).expect("File non find");
 
     let mut data = Vec::new();
@@ -257,7 +257,7 @@ fn load_dataset_mnist_label(path: &str) -> Vec<u8> {
     labels
 }
 
-fn draw_mnist(image: Vec<Vec<f64>>) -> Result<(), Box<dyn std::error::Error>> {
+fn draw_mnist(image: Vec<Vec<f32>>) -> Result<(), Box<dyn std::error::Error>> {
     let root_area = BitMapBackend::new("plot.png", (840, 840)).into_drawing_area();
     root_area.fill(&WHITE)?;
 
@@ -269,7 +269,7 @@ fn draw_mnist(image: Vec<Vec<f64>>) -> Result<(), Box<dyn std::error::Error>> {
 
     for (i, row) in image.iter().enumerate() {
         for (j, &value) in row.iter().enumerate() {
-            let color = HSLColor(0.0, 0.0, value);
+            let color = HSLColor(0.0, 0.0, value as f64);
 
             root_area.draw(&Rectangle::new(
                 [
@@ -286,8 +286,8 @@ fn draw_mnist(image: Vec<Vec<f64>>) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn draw_loss_over_time(
-    losses: &Vec<f64>,
-    validation_losses: &Vec<f64>,
+    losses: &Vec<f32>,
+    validation_losses: &Vec<f32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create a drawing area for the plot
     let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
@@ -300,7 +300,7 @@ fn draw_loss_over_time(
         .x_label_area_size(30)
         .y_label_area_size(30)
         .build_cartesian_2d(0.0..losses.len() as f64, 0.0..0.2)?;
-    // .build_cartesian_2d(0.0..losses.len() as f64, (0.0..0.2).log_scale())?;
+    // .build_cartesian_2d(0.0..losses.len() as f32, (0.0..0.2).log_scale())?;
 
     // Draw the mesh for the chart
     chart.configure_mesh().draw()?; // Define the data points for the line
@@ -308,7 +308,10 @@ fn draw_loss_over_time(
     // Plot the line using the data points
     chart
         .draw_series(LineSeries::new(
-            losses.iter().enumerate().map(|(i, &loss)| (i as f64, loss)),
+            losses
+                .iter()
+                .enumerate()
+                .map(|(i, &loss)| (i as f64, loss as f64)),
             &RED,
         ))?
         .label("Training Loss")
@@ -318,7 +321,7 @@ fn draw_loss_over_time(
             validation_losses
                 .iter()
                 .enumerate()
-                .map(|(i, &loss)| (i as f64, loss)),
+                .map(|(i, &loss)| (i as f64, loss as f64)),
             &GREEN,
         ))?
         .label("Validation Loss")
@@ -336,18 +339,18 @@ fn draw_loss_over_time(
     Ok(())
 }
 
-fn rmse(current: &Vec<f64>, target: &Vec<f64>) -> f64 {
+fn rmse(current: &Vec<f32>, target: &Vec<f32>) -> f32 {
     let n = current.len();
-    let sum_squared_error: f64 = current
+    let sum_squared_error: f32 = current
         .iter()
         .zip(target.iter())
         .map(|(c, t)| (c - t).powi(2))
         .sum();
-    (sum_squared_error / n as f64).sqrt()
+    (sum_squared_error / n as f32).sqrt()
 }
 
 // dl/dout (Gradient of loss for the network) = (output - target)
-fn network_gradient_loss(predictions: &Vec<f64>, target: &Vec<f64>) -> Vec<f64> {
+fn network_gradient_loss(predictions: &Vec<f32>, target: &Vec<f32>) -> Vec<f32> {
     predictions
         .into_iter()
         .zip(target.clone().into_iter())
@@ -356,24 +359,25 @@ fn network_gradient_loss(predictions: &Vec<f64>, target: &Vec<f64>) -> Vec<f64> 
 }
 
 fn main() {
-    let mut losses: Vec<f64> = vec![];
-    let mut validation_losses: Vec<f64> = vec![];
+    let mut losses: Vec<f32> = vec![];
+    let mut validation_losses: Vec<f32> = vec![];
+    let mut accuracies: Vec<f32> = vec![];
 
     //#########################################################################
     // Load data
     //#########################################################################
 
     // Training
-    let dataset: Vec<Vec<Vec<f64>>> =
+    let dataset: Vec<Vec<Vec<f32>>> =
         load_dataset_mnist_images("datasets/mnist/train-images.idx3-ubyte");
     let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/train-labels.idx1-ubyte");
-    let flat_dataset: Vec<Vec<f64>> = flatten_images(dataset.clone());
-    let flat_labels: Vec<Vec<f64>> = flatten_labels(labels.clone());
+    let flat_dataset: Vec<Vec<f32>> = flatten_images(dataset.clone());
+    let flat_labels: Vec<Vec<f32>> = flatten_labels(labels.clone());
 
     // Validation
-    let validation_dataset: Vec<Vec<Vec<f64>>> =
+    let validation_dataset: Vec<Vec<Vec<f32>>> =
         load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
-    let validation_flat_dataset: Vec<Vec<f64>> = flatten_images(validation_dataset.clone());
+    let validation_flat_dataset: Vec<Vec<f32>> = flatten_images(validation_dataset.clone());
     let validation_labels: Vec<u8> =
         load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
     let validation_flat_labels = flatten_labels(validation_labels.clone());
@@ -404,6 +408,7 @@ fn main() {
         validation_loss =
             network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
         let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
+        accuracies.push(accuracy);
 
         dt = SystemTime::now().duration_since(start).expect("Error");
         epoch += 1;
@@ -416,7 +421,7 @@ fn main() {
             accuracy,
         );
     }
-    avg_epoch_time = dt.as_millis() as f64 / epoch as f64;
+    avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
 
     //#########################################################################
     // Testing
@@ -429,12 +434,17 @@ fn main() {
     // Visualization
     //#########################################################################
     let _ = draw_loss_over_time(&losses, &validation_losses);
-    let data = format!("{:?}, {}", validation_loss, avg_epoch_time);
+    let data = format!(
+        "{:?},{},{}",
+        validation_loss,
+        avg_epoch_time,
+        accuracies.last().unwrap()
+    );
     fs::write("last_mnist_results", data).expect("Unable to write file");
 }
 
 // fn main() {
-//     let mut losses: Vec<f64> = vec![];
+//     let mut losses: Vec<f32> = vec![];
 
 //     //#########################################################################
 //     // Load data
@@ -470,7 +480,7 @@ fn main() {
 //             let dl_dout = vec![output[0] - target[0]];
 //             network.backward(&dl_dout, learning_rate);
 //         }
-//         let loss_avg = loss_sum / training_data.len() as f64;
+//         let loss_avg = loss_sum / training_data.len() as f32;
 //         losses.push(loss_avg);
 //         if epoch % 1000 == 0 {
 //             println!("Epoch {}: avg loss = {}", epoch, loss_avg);
