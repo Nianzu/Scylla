@@ -3,6 +3,8 @@ use rand::Rng;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
+use std::io::{self, prelude::*, BufReader};
+use std::process::exit;
 use std::time::SystemTime;
 use std::vec;
 
@@ -257,6 +259,55 @@ fn load_dataset_mnist_label(path: &str) -> Vec<u8> {
     labels
 }
 
+fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>) {
+    let mut train_data = Vec::new();
+    let mut train_labels = Vec::new();
+    let mut validation_data = Vec::new();
+    let mut validation_labels = Vec::new();
+
+    let mut file = File::open(path).expect("File find no");
+    let reader = BufReader::new(file);
+    let mut rng = rand::rng();
+
+    let mut is_data = true;
+    let mut is_training: bool = true;
+    for line in reader.lines() {
+        let processed_line = line.expect("REASON");
+        let mut processed_line_2 = processed_line.split(",").collect::<Vec<_>>();
+        processed_line_2.retain(|a| !a.is_empty());
+
+        let line_vec: Vec<f32> = processed_line_2
+            .into_iter()
+            .map(|a| {
+                a.trim()
+                    .parse::<f32>()
+                    .expect("Error parsing value as float")
+            })
+            .collect::<Vec<_>>();
+        if is_data {
+            is_training = rng.random_range(1..=10) != 1;
+            match is_training {
+                true => {
+                    train_data.push(line_vec);
+                }
+                false => {
+                    validation_data.push(line_vec);
+                }
+            }
+        } else {
+            match is_training {
+                true => {
+                    train_labels.push(line_vec);
+                }
+                false => {
+                    validation_labels.push(line_vec);
+                }
+            }
+        }
+        is_data = !is_data;
+    }
+    (train_data, train_labels, validation_data, validation_labels)
+}
 fn draw_mnist(image: Vec<Vec<f32>>) -> Result<(), Box<dyn std::error::Error>> {
     let root_area = BitMapBackend::new("plot.png", (840, 840)).into_drawing_area();
     root_area.fill(&WHITE)?;
@@ -367,26 +418,22 @@ fn main() {
     // Load data
     //#########################################################################
 
-    // Training
-    let dataset: Vec<Vec<Vec<f32>>> =
-        load_dataset_mnist_images("datasets/mnist/train-images.idx3-ubyte");
-    let labels: Vec<u8> = load_dataset_mnist_label("datasets/mnist/train-labels.idx1-ubyte");
-    let flat_dataset: Vec<Vec<f32>> = flatten_images(dataset.clone());
-    let flat_labels: Vec<Vec<f32>> = flatten_labels(labels.clone());
+    let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
+        load_scylla_csv("datasets/chess_2000/data.csv");
+    println!("Train dataset size: {}", flat_dataset.len());
+    println!("Train labels size: {}", flat_labels.len());
+    println!("Validation dataset size: {}", validation_flat_dataset.len());
+    println!("Validation labels size: {}", validation_flat_labels.len());
 
-    // Validation
-    let validation_dataset: Vec<Vec<Vec<f32>>> =
-        load_dataset_mnist_images("datasets/mnist/t10k-images.idx3-ubyte");
-    let validation_flat_dataset: Vec<Vec<f32>> = flatten_images(validation_dataset.clone());
-    let validation_labels: Vec<u8> =
-        load_dataset_mnist_label("datasets/mnist/t10k-labels.idx1-ubyte");
-    let validation_flat_labels = flatten_labels(validation_labels.clone());
+    println!("\nTrain dataset instance size: {}", flat_dataset[0].len());
+    println!("Train labels instance size: {}", flat_labels[0].len());
+
 
     //#########################################################################
     // Create network
     //#########################################################################
 
-    let mut network = Network::new(&[784, 128, 10]);
+    let mut network = Network::new(&[384, 128, 64]);
     let learning_rate = 0.1;
 
     //#########################################################################
