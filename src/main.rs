@@ -391,13 +391,31 @@ fn main() {
             let avg_epoch_time;
             let mut prev_validation_loss = 1.0;
             let mut validation_loss = 1.0;
+            //#########################################################################
+            // Training
+            //#########################################################################
+            let start = SystemTime::now();
+            let mut dt = SystemTime::now().duration_since(start).expect("Error");
+            let mut epoch = 0;
+            let avg_epoch_time;
+            let mut prev_validation_loss = 1.0;
+            let mut validation_loss = 1.0;
 
             while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
                 let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
                 losses.push(loss_avg);
                 prev_validation_loss = validation_loss;
                 validation_losses.push(validation_loss);
+            while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
+                let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
+                losses.push(loss_avg);
+                prev_validation_loss = validation_loss;
+                validation_losses.push(validation_loss);
 
+                validation_loss =
+                    network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
+                let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
+                accuracies.push(accuracy);
                 validation_loss =
                     network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
                 let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
