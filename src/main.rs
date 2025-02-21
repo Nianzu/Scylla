@@ -372,9 +372,9 @@ fn main() {
         let network_path = "trained_network/".to_owned() + network_name + ".bin";
         if trained_networks.contains(&network_path) {
             networks.push(Network::load(&network_path));
-            println!("Loaded Network: {}",network_name);
+            println!("Loaded Network: {}", network_name);
         } else {
-            println!("Training Network: {}",network_name);
+            println!("Training Network: {}", network_name);
             //#########################################################################
             // Create network
             //#########################################################################
@@ -391,31 +391,13 @@ fn main() {
             let avg_epoch_time;
             let mut prev_validation_loss = 1.0;
             let mut validation_loss = 1.0;
-            //#########################################################################
-            // Training
-            //#########################################################################
-            let start = SystemTime::now();
-            let mut dt = SystemTime::now().duration_since(start).expect("Error");
-            let mut epoch = 0;
-            let avg_epoch_time;
-            let mut prev_validation_loss = 1.0;
-            let mut validation_loss = 1.0;
 
-            while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
-                let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
-                losses.push(loss_avg);
-                prev_validation_loss = validation_loss;
-                validation_losses.push(validation_loss);
-            while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
+            while dt.as_millis() < 100_000_000 && validation_loss <= prev_validation_loss {
                 let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
                 losses.push(loss_avg);
                 prev_validation_loss = validation_loss;
                 validation_losses.push(validation_loss);
 
-                validation_loss =
-                    network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
-                let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
-                accuracies.push(accuracy);
                 validation_loss =
                     network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
                 let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
@@ -424,16 +406,18 @@ fn main() {
                 dt = SystemTime::now().duration_since(start).expect("Error");
                 epoch += 1;
                 print!(
-            "\rEpoch: {:3}, Total time: {:5}s | Training loss: {:8}, Validation loss: {:8}, Validation accuracy: {:8}",
-            epoch,
-            dt.as_secs(),
-            loss_avg,
-            validation_loss,
-            accuracy,
-        );
+                    "\rEpoch: {:3}, Total time: {:5}s | Training loss: {:8}, Validation loss: {:8}, Validation accuracy: {:8}",
+                    epoch,
+                    dt.as_secs(),
+                    loss_avg,
+                    validation_loss,
+                    accuracy,
+                );
+                std::io::stdout().flush().unwrap();
                 network.save();
             }
             println!("");
+            networks.push(network);
             avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
 
             //#########################################################################
