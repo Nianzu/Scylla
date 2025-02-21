@@ -210,6 +210,10 @@ impl Network {
     fn save(&mut self) {
         save_file("trained_network/".to_owned() + &self.name + ".bin", 0, self).unwrap();
     }
+
+    fn load(path: &str) -> Network {
+        load_file(path, 0).unwrap()
+    }
 }
 
 fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>) {
@@ -348,45 +352,58 @@ fn main() {
     let mut losses: Vec<f32> = vec![];
     let mut validation_losses: Vec<f32> = vec![];
     let mut accuracies: Vec<f32> = vec![];
+    let network_names = vec!["piece_selector"];
+    let trained_networks: Vec<String> = fs::read_dir("trained_network")
+        .expect("Unable to read trained_networks")
+        .map(|a| a.unwrap().path().to_str().unwrap().to_owned())
+        .collect();
+    let mut networks: Vec<Network> = vec![];
 
-    //#########################################################################
-    // Load data
-    //#########################################################################
+    for network_name in network_names {
+        //#########################################################################
+        // Load data
+        //#########################################################################
 
-    let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
-        load_scylla_csv("datasets/chess_2000/data.csv");
+        let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
+            load_scylla_csv(&("datasets/chess_2000/".to_owned() + network_name + ".csv"));
 
-    //#########################################################################
-    // Create network
-    //#########################################################################
+        println!("{:?}", trained_networks);
+        let network_path = "trained_network/".to_owned() + network_name + ".bin";
+        if trained_networks.contains(&network_path) {
+            println!("True");
+            networks.push(Network::load(&network_path));
+        } else {
+            //#########################################################################
+            // Create network
+            //#########################################################################
 
-    let mut network = Network::new("piece_selector",&[384, 128, 64]);
-    let learning_rate = 0.1;
+            let mut network = Network::new(network_name, &[384, 128, 64]);
+            let learning_rate = 0.1;
 
-    //#########################################################################
-    // Training
-    //#########################################################################
-    let start = SystemTime::now();
-    let mut dt = SystemTime::now().duration_since(start).expect("Error");
-    let mut epoch = 0;
-    let avg_epoch_time;
-    let mut prev_validation_loss = 1.0;
-    let mut validation_loss = 1.0;
+            //#########################################################################
+            // Training
+            //#########################################################################
+            let start = SystemTime::now();
+            let mut dt = SystemTime::now().duration_since(start).expect("Error");
+            let mut epoch = 0;
+            let avg_epoch_time;
+            let mut prev_validation_loss = 1.0;
+            let mut validation_loss = 1.0;
 
-    while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
-        let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
-        losses.push(loss_avg);
-        prev_validation_loss = validation_loss;
-        validation_losses.push(validation_loss);
+            while dt.as_millis() < 10000_000 && validation_loss <= prev_validation_loss {
+                let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
+                losses.push(loss_avg);
+                prev_validation_loss = validation_loss;
+                validation_losses.push(validation_loss);
 
-        validation_loss =
-            network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
-        let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
-        accuracies.push(accuracy);
+                validation_loss =
+                    network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
+                let accuracy = network.accuracy(&validation_flat_dataset, &validation_flat_labels);
+                accuracies.push(accuracy);
 
-        dt = SystemTime::now().duration_since(start).expect("Error");
-        epoch += 1;
-        println!(
+                dt = SystemTime::now().duration_since(start).expect("Error");
+                epoch += 1;
+                println!(
             "Epoch: {}, Total time: {} | Training loss: {}, Validation loss: {}, Validation accuracy: {}",
             epoch,
             dt.as_millis(),
@@ -394,26 +411,22 @@ fn main() {
             validation_loss,
             accuracy,
         );
-        network.save();
+                network.save();
+            }
+            avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
+
+            //#########################################################################
+            // Visualization
+            //#########################################################################
+            let _ = draw_loss_over_time(&losses, &validation_losses);
+        }
+
+        //#########################################################################
+        // Testing
+        //#########################################################################
+        let network_length = networks.len();
+        let validation_loss = networks[network_length - 1]
+            .accuracy(&validation_flat_dataset, &validation_flat_labels);
+        println!("Accuracy: {}", validation_loss);
     }
-    avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
-
-    //#########################################################################
-    // Testing
-    //#########################################################################
-    let validation_loss =
-        network.validation_loss(&validation_flat_dataset, &validation_flat_labels);
-    println!("Validation loss: {}", validation_loss);
-
-    //#########################################################################
-    // Visualization
-    //#########################################################################
-    let _ = draw_loss_over_time(&losses, &validation_losses);
-    let data = format!(
-        "{:?},{},{}",
-        validation_loss,
-        avg_epoch_time,
-        accuracies.last().unwrap()
-    );
-    fs::write("last_training_results", data).expect("Unable to write file");
 }
