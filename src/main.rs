@@ -2,9 +2,7 @@ use plotters::prelude::*;
 use rand::Rng;
 use std::fs;
 use std::fs::File;
-use std::io::Read;
-use std::io::{self, prelude::*, BufReader};
-use std::process::exit;
+use std::io::{prelude::*, BufReader};
 use std::time::SystemTime;
 use std::vec;
 
@@ -204,68 +202,13 @@ impl Network {
     }
 }
 
-fn normalize_images(input: Vec<Vec<Vec<u8>>>) -> Vec<Vec<Vec<f32>>> {
-    input
-        .into_iter()
-        .map(|vec1| {
-            vec1.into_iter()
-                .map(|vec2| vec2.into_iter().map(|item| item as f32 / 255.0).collect())
-                .collect()
-        })
-        .collect()
-}
-
-fn flatten_images(input: Vec<Vec<Vec<f32>>>) -> Vec<Vec<f32>> {
-    input
-        .into_iter()
-        .map(|vec1| vec1.into_iter().flatten().collect())
-        .collect()
-}
-
-fn flatten_labels(input: Vec<u8>) -> Vec<Vec<f32>> {
-    let mut output = vec![];
-    for item in input {
-        let mut current_vec = vec![0.0; 10];
-        current_vec[item as usize] = 1.0;
-        output.push(current_vec);
-    }
-    output
-}
-
-// https://github.com/R34ll/mnist_rust
-fn load_dataset_mnist_images(path: &str) -> Vec<Vec<Vec<f32>>> {
-    let mut file = File::open(path).expect("File non find");
-
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).unwrap();
-    data.drain(0..16); // https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
-    let dataset: Vec<Vec<Vec<u8>>> = data
-        .chunks(784)
-        .map(|chunk| chunk.chunks(28).map(|s| s.into()).collect())
-        .collect();
-    println!("Images in dataset: {}", dataset.len());
-    normalize_images(dataset)
-}
-
-// https://github.com/busyboredom/rust-mnist/blob/main/src/lib.rs#L185
-fn load_dataset_mnist_label(path: &str) -> Vec<u8> {
-    let mut file = File::open(path).expect("File non find");
-
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).unwrap();
-    data.drain(0..8);
-    let labels: Vec<u8> = data.iter_mut().map(|&mut l| l as u8).collect();
-    println!("Labels in dataset: {}", labels.len());
-    labels
-}
-
 fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>) {
     let mut train_data = Vec::new();
     let mut train_labels = Vec::new();
     let mut validation_data = Vec::new();
     let mut validation_labels = Vec::new();
 
-    let mut file = File::open(path).expect("File find no");
+    let file = File::open(path).expect("File find no");
     let reader = BufReader::new(file);
     let mut rng = rand::rng();
 
@@ -307,33 +250,6 @@ fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, 
         is_data = !is_data;
     }
     (train_data, train_labels, validation_data, validation_labels)
-}
-fn draw_mnist(image: Vec<Vec<f32>>) -> Result<(), Box<dyn std::error::Error>> {
-    let root_area = BitMapBackend::new("plot.png", (840, 840)).into_drawing_area();
-    root_area.fill(&WHITE)?;
-
-    let (width, height) = (image[0].len(), image.len());
-
-    // Define the grid layout
-    let cell_width: i32 = 840 / width as i32;
-    let cell_height: i32 = 840 / height as i32;
-
-    for (i, row) in image.iter().enumerate() {
-        for (j, &value) in row.iter().enumerate() {
-            let color = HSLColor(0.0, 0.0, value as f64);
-
-            root_area.draw(&Rectangle::new(
-                [
-                    (j as i32 * cell_width, i as i32 * cell_height),
-                    ((j + 1) as i32 * cell_width, (i + 1) as i32 * cell_height),
-                ],
-                color.filled(),
-            ))?;
-        }
-    }
-
-    root_area.present()?;
-    Ok(())
 }
 
 fn draw_loss_over_time(
@@ -427,7 +343,6 @@ fn main() {
 
     println!("\nTrain dataset instance size: {}", flat_dataset[0].len());
     println!("Train labels instance size: {}", flat_labels[0].len());
-
 
     //#########################################################################
     // Create network
