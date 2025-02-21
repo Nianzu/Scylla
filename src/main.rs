@@ -276,11 +276,13 @@ fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, 
 }
 
 fn draw_loss_over_time(
+    name: &str,
     losses: &Vec<f32>,
     validation_losses: &Vec<f32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create a drawing area for the plot
-    let root = BitMapBackend::new("line_plot.png", (640, 480)).into_drawing_area();
+    let file_path = name.to_owned() + ".png";
+    let root = BitMapBackend::new(&file_path, (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
 
     // Define the chart area and label axes
@@ -367,18 +369,18 @@ fn main() {
         let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
             load_scylla_csv(&("datasets/chess_2000/".to_owned() + network_name + ".csv"));
 
-        println!("{:?}", trained_networks);
         let network_path = "trained_network/".to_owned() + network_name + ".bin";
         if trained_networks.contains(&network_path) {
-            println!("True");
             networks.push(Network::load(&network_path));
+            println!("Loaded Network: {}",network_name);
         } else {
+            println!("Training Network: {}",network_name);
             //#########################################################################
             // Create network
             //#########################################################################
 
             let mut network = Network::new(network_name, &[384, 128, 64]);
-            let learning_rate = 0.1;
+            let learning_rate = 0.01;
 
             //#########################################################################
             // Training
@@ -403,22 +405,23 @@ fn main() {
 
                 dt = SystemTime::now().duration_since(start).expect("Error");
                 epoch += 1;
-                println!(
-            "Epoch: {}, Total time: {} | Training loss: {}, Validation loss: {}, Validation accuracy: {}",
+                print!(
+            "\rEpoch: {:3}, Total time: {:5}s | Training loss: {:8}, Validation loss: {:8}, Validation accuracy: {:8}",
             epoch,
-            dt.as_millis(),
+            dt.as_secs(),
             loss_avg,
             validation_loss,
             accuracy,
         );
                 network.save();
             }
+            println!("");
             avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
 
             //#########################################################################
             // Visualization
             //#########################################################################
-            let _ = draw_loss_over_time(&losses, &validation_losses);
+            let _ = draw_loss_over_time(network_name, &losses, &validation_losses);
         }
 
         //#########################################################################
