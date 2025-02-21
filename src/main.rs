@@ -1,11 +1,14 @@
 use plotters::prelude::*;
 use rand::Rng;
+use savefile::prelude::*;
+use savefile_derive::Savefile;
 use std::fs;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::time::SystemTime;
 use std::vec;
 
+#[derive(Savefile)]
 struct Layer {
     weights: Vec<f32>,
     weight_width: usize,
@@ -121,17 +124,20 @@ impl Layer {
     }
 }
 
+#[derive(Savefile)]
 struct Network {
+    name: String,
     layers: Vec<Layer>,
 }
 
 impl Network {
-    fn new(layer_sizes: &[usize]) -> Self {
+    fn new(name_str: &str, layer_sizes: &[usize]) -> Self {
         let mut layers = vec![];
+        let name: String = name_str.to_owned();
         for i in 0..(layer_sizes.len() - 1) {
             layers.push(Layer::new(layer_sizes[i], layer_sizes[i + 1]));
         }
-        Self { layers }
+        Self { name, layers }
     }
 
     fn forward(&mut self, input: &Vec<f32>) -> Vec<f32> {
@@ -200,6 +206,10 @@ impl Network {
         }
         accuracy / dataset.len() as f32
     }
+
+    fn save(&mut self) {
+        save_file("trained_network/".to_owned() + &self.name + ".bin", 0, self).unwrap();
+    }
 }
 
 fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>) {
@@ -249,6 +259,15 @@ fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, 
         }
         is_data = !is_data;
     }
+
+    println!("Train dataset size: {}", train_data.len());
+    println!("Train labels size: {}", train_labels.len());
+    println!("Validation dataset size: {}", validation_data.len());
+    println!("Validation labels size: {}", validation_labels.len());
+
+    println!("\nTrain dataset instance size: {}", train_data[0].len());
+    println!("Train labels instance size: {}", train_labels[0].len());
+
     (train_data, train_labels, validation_data, validation_labels)
 }
 
@@ -336,19 +355,12 @@ fn main() {
 
     let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
         load_scylla_csv("datasets/chess_2000/data.csv");
-    println!("Train dataset size: {}", flat_dataset.len());
-    println!("Train labels size: {}", flat_labels.len());
-    println!("Validation dataset size: {}", validation_flat_dataset.len());
-    println!("Validation labels size: {}", validation_flat_labels.len());
-
-    println!("\nTrain dataset instance size: {}", flat_dataset[0].len());
-    println!("Train labels instance size: {}", flat_labels[0].len());
 
     //#########################################################################
     // Create network
     //#########################################################################
 
-    let mut network = Network::new(&[384, 128, 64]);
+    let mut network = Network::new("piece_selector",&[384, 128, 64]);
     let learning_rate = 0.1;
 
     //#########################################################################
@@ -382,6 +394,7 @@ fn main() {
             validation_loss,
             accuracy,
         );
+        network.save();
     }
     avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
 
@@ -402,5 +415,5 @@ fn main() {
         avg_epoch_time,
         accuracies.last().unwrap()
     );
-    fs::write("last_mnist_results", data).expect("Unable to write file");
+    fs::write("last_training_results", data).expect("Unable to write file");
 }
