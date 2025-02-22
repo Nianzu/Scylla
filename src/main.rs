@@ -392,7 +392,7 @@ fn main() {
             let mut prev_validation_loss = 1.0;
             let mut validation_loss = 1.0;
 
-            while dt.as_secs() < 100_000 && validation_loss <= prev_validation_loss {
+            while dt.as_secs() < 100_000 && validation_loss <= prev_validation_loss && epoch < 100{
                 let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
                 losses.push(loss_avg);
                 prev_validation_loss = validation_loss;
