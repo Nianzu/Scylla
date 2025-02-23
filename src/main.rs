@@ -263,14 +263,8 @@ fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, 
         }
         is_data = !is_data;
     }
-
-    println!("Train dataset size: {}", train_data.len());
-    println!("Train labels size: {}", train_labels.len());
-    println!("Validation dataset size: {}", validation_data.len());
-    println!("Validation labels size: {}", validation_labels.len());
-
-    println!("\nTrain dataset instance size: {}", train_data[0].len());
-    println!("Train labels instance size: {}", train_labels[0].len());
+    println!("Loaded data file \"{}\"",path);
+    println!("(Train, Validation) dataset size: ({}, {})", train_data.len(), validation_data.len());
 
     (train_data, train_labels, validation_data, validation_labels)
 }
@@ -351,9 +345,6 @@ fn network_gradient_loss(predictions: &Vec<f32>, target: &Vec<f32>) -> Vec<f32> 
 }
 
 fn main() {
-    let mut losses: Vec<f32> = vec![];
-    let mut validation_losses: Vec<f32> = vec![];
-    let mut accuracies: Vec<f32> = vec![];
     let network_names = vec![
         "piece_selector",
         "pawn",
@@ -370,6 +361,9 @@ fn main() {
     let mut networks: Vec<Network> = vec![];
 
     for network_name in network_names {
+        let mut losses: Vec<f32> = vec![];
+        let mut validation_losses: Vec<f32> = vec![];
+        let mut accuracies: Vec<f32> = vec![];
         //#########################################################################
         // Load data
         //#########################################################################
@@ -400,7 +394,7 @@ fn main() {
             let mut prev_validation_loss = 1.0;
             let mut validation_loss = 1.0;
 
-            while dt.as_secs() < 100_000 && validation_loss <= prev_validation_loss && epoch < 100 {
+            while dt.as_secs() < 100_000 && validation_loss <= prev_validation_loss && epoch < 200 {
                 let loss_avg = network.train(&flat_dataset, &flat_labels, learning_rate);
                 losses.push(loss_avg);
                 prev_validation_loss = validation_loss;
