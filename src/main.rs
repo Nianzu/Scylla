@@ -1,9 +1,12 @@
 use plotters::prelude::*;
+use plotters::style::Color;
 use rand::Rng;
+use rschess::{Board, Color as chessColor, PieceType};
 use savefile::prelude::*;
 use savefile_derive::Savefile;
 use std::fs;
 use std::fs::File;
+use std::io;
 use std::io::{prelude::*, BufReader};
 use std::time::SystemTime;
 use std::vec;
@@ -263,8 +266,12 @@ fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, 
         }
         is_data = !is_data;
     }
-    println!("Loaded data file \"{}\"",path);
-    println!("(Train, Validation) dataset size: ({}, {})", train_data.len(), validation_data.len());
+    println!("Loaded data file \"{}\"", path);
+    println!(
+        "(Train, Validation) dataset size: ({}, {})",
+        train_data.len(),
+        validation_data.len()
+    );
 
     (train_data, train_labels, validation_data, validation_labels)
 }
@@ -368,14 +375,14 @@ fn main() {
         // Load data
         //#########################################################################
 
-        let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
-            load_scylla_csv(&("datasets/chess_2000/".to_owned() + network_name + ".csv"));
-
         let network_path = "trained_network/".to_owned() + network_name + ".bin";
         if trained_networks.contains(&network_path) {
             networks.push(Network::load(&network_path));
             println!("Loaded Network: {}", network_name);
         } else {
+            let (flat_dataset, flat_labels, validation_flat_dataset, validation_flat_labels) =
+                load_scylla_csv(&("datasets/chess_2000/".to_owned() + network_name + ".csv"));
+
             println!("Training Network: {}", network_name);
             //#########################################################################
             // Create network
@@ -390,7 +397,6 @@ fn main() {
             let start = SystemTime::now();
             let mut dt = SystemTime::now().duration_since(start).expect("Error");
             let mut epoch = 0;
-            let avg_epoch_time;
             let mut prev_validation_loss = 1.0;
             let mut validation_loss = 1.0;
 
@@ -420,20 +426,38 @@ fn main() {
             }
             println!("");
             networks.push(network);
-            avg_epoch_time = dt.as_millis() as f32 / epoch as f32;
 
             //#########################################################################
             // Visualization
             //#########################################################################
             let _ = draw_loss_over_time(network_name, &losses, &validation_losses);
+            //#########################################################################
+            // Testing
+            //#########################################################################
+            let network_length = networks.len();
+            let validation_loss = networks[network_length - 1]
+                .accuracy(&validation_flat_dataset, &validation_flat_labels);
+            println!("Accuracy: {}", validation_loss);
         }
-
-        //#########################################################################
-        // Testing
-        //#########################################################################
-        let network_length = networks.len();
-        let validation_loss = networks[network_length - 1]
-            .accuracy(&validation_flat_dataset, &validation_flat_labels);
-        println!("Accuracy: {}", validation_loss);
+    }
+    println!("Ready to play");
+    let mut game_state = Board::default();
+    while true {
+        println!("{}", game_state);
+        print!("Your move: ");
+        std::io::stdout().flush().unwrap();
+        let mut move_string = String::new();
+        io::stdin()
+            .read_line(&mut move_string)
+            .expect("Error reading input");
+        println!("{}", move_string);
+        match game_state.make_move_uci(move_string.trim()) {
+            Ok(()) => {
+                println!("OK MOVE!")
+            }
+            Err(_) => {
+                println!("BAD MOVE")
+            }
+        }
     }
 }
