@@ -1,15 +1,16 @@
 use plotters::prelude::*;
 use plotters::style::Color;
 use rand::Rng;
+use rschess::Move;
 use rschess::{Board, Color as chessColor, PieceType};
 use savefile::prelude::*;
 use savefile_derive::Savefile;
-use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
 use std::time::SystemTime;
 use std::vec;
+use std::{fs, string};
 
 #[derive(Savefile)]
 struct Layer {
@@ -224,8 +225,8 @@ struct BitBoards {
     bishops: Vec<i8>,
     knights: Vec<i8>,
     rooks: Vec<i8>,
-    kings: Vec<i8>,
     queens: Vec<i8>,
+    kings: Vec<i8>,
     piece_selected: Vec<i8>,
     destination: Vec<i8>,
 }
@@ -237,8 +238,8 @@ impl BitBoards {
             bishops: vec![0; 64],
             knights: vec![0; 64],
             rooks: vec![0; 64],
-            kings: vec![0; 64],
             queens: vec![0; 64],
+            kings: vec![0; 64],
             piece_selected: vec![0; 64],
             destination: vec![0; 64],
         }
@@ -453,33 +454,73 @@ fn split_vec(vec: Vec<f32>) -> Vec<Vec<f32>> {
         .collect() // Collect into a Vec<Vec<i8>>
 }
 
-fn get_best_move_and_score(rank: char, file: char, board:&Board) -> f32{
-    if board.occupant_of_square(file, rank).unwrap().is_none()
-    {
-        return 0.0;
+fn get_best_move_and_score(
+    rank: char,
+    file: char,
+    board: &Board,
+    pred_pawns: &Vec<f32>,
+    pred_bishops: &Vec<f32>,
+    pred_knights: &Vec<f32>,
+    pred_rooks: &Vec<f32>,
+    pred_queens: &Vec<f32>,
+    pred_kings: &Vec<f32>,
+) -> (f32, String) {
+    if board.occupant_of_square(file, rank).unwrap().is_none() {
+        return (0.0, "".to_owned());
     }
-    if board.occupant_of_square(file, rank).unwrap().unwrap().color() == chessColor::Black
+    if board
+        .occupant_of_square(file, rank)
+        .unwrap()
+        .unwrap()
+        .color()
+        == chessColor::Black
     {
-        return 0.0;
+        return (0.0, "".to_owned());
     }
-    let pos_uci_start=format!("{}{}",file,rank);
-    let mut moves_from_pos:Vec<String> = vec![];
+    let pos_uci_start = format!("{}{}", file, rank);
+    let mut moves_from_pos: Vec<String> = vec![];
     for mv in board.gen_legal_moves() {
-        let move_str = mv.to_uci();  
-        
+        let move_str = mv.to_uci();
+
         if move_str.starts_with(&pos_uci_start) {
             let split_pos = move_str.char_indices().nth_back(1).unwrap().0;
             moves_from_pos.push(move_str[split_pos..].to_string());
         }
     }
 
-    println!("{} has moves {:?}",pos_uci_start,moves_from_pos);
-    match board.occupant_of_square(file, rank).unwrap().unwrap().piece_type() {
-        PieceType::P => {}
-        _ => { return 0.0;}
+    // println!("{} has moves {:?}", pos_uci_start, moves_from_pos);
+    let mut best_move_score = 0.0;
+    let mut best_move_uci = "".to_owned();
+    for m in moves_from_pos {
+        let file_int = m.chars().nth(0).unwrap() as usize - 97;
+        let rank_int = m.chars().nth(1).unwrap() as usize - 49;
+        let index = file_int + ((7 - rank_int) * 8);
+        // println!(
+        //     "uci {} translates to {}",
+        //     m,
+        //     index
+        // );
+        let score = match board
+            .occupant_of_square(file, rank)
+            .unwrap()
+            .unwrap()
+            .piece_type()
+        {
+            PieceType::P => pred_pawns[index],
+            PieceType::B => pred_bishops[index],
+            PieceType::N => pred_knights[index],
+            PieceType::R => pred_rooks[index],
+            PieceType::Q => pred_queens[index],
+            PieceType::K => pred_kings[index],
+            _ => 0.0,
+        };
+        if score > best_move_score {
+            best_move_score = score;
+            best_move_uci = m;
+        }
     }
 
-    return 1.0;
+    return (best_move_score, best_move_uci);
 }
 
 fn main() {
@@ -601,8 +642,8 @@ fn main() {
                         PieceType::B => pieces.bishops[index] = piece_value,
                         PieceType::N => pieces.knights[index] = piece_value,
                         PieceType::R => pieces.rooks[index] = piece_value,
-                        PieceType::K => pieces.kings[index] = piece_value,
                         PieceType::Q => pieces.queens[index] = piece_value,
+                        PieceType::K => pieces.kings[index] = piece_value,
                     }
                 }
                 index += 1;
@@ -615,30 +656,55 @@ fn main() {
             pieces.bishops,
             pieces.knights,
             pieces.rooks,
-            pieces.kings,
             pieces.queens,
+            pieces.kings,
         ];
 
         let result = combine_vecs(vecs);
         let pred_piece_sel = networks[0].forward(&result);
-        // let pred_pawns = (networks[1].forward(&result)) ;
-        // let pred_bishops = (networks[2].forward(&result));
-        // let pred_knights = (networks[3].forward(&result));
-        // let pred_rooks = (networks[4].forward(&result));
-        // let pred_kings = (networks[5].forward(&result));
-        // let pred_queens = (networks[6].forward(&result));
+        let pred_pawns = (networks[1].forward(&result));
+        let pred_bishops = (networks[2].forward(&result));
+        let pred_knights = (networks[3].forward(&result));
+        let pred_rooks = (networks[4].forward(&result));
+        let pred_queens = (networks[6].forward(&result));
+        let pred_kings = (networks[5].forward(&result));
 
         let mut index = 0;
+        let mut best_move_score = 0.0;
+        let mut best_move_uci = "".to_string();
         for rank in ('1'..='8').rev() {
             for file in 'a'..='h' {
                 let file_int = file as usize - 97;
                 let rank_int = rank as usize - 49;
-                // print!("{} ", pred_piece_sel[file_int + ((7 - rank_int) * 8)] * get_best_move_and_score(rank,file,&game_state))
-                get_best_move_and_score(rank,file,&game_state);
-                
+                let (dst_score, dst_uci) = get_best_move_and_score(
+                    rank,
+                    file,
+                    &game_state,
+                    &pred_pawns,
+                    &pred_bishops,
+                    &pred_knights,
+                    &pred_rooks,
+                    &pred_queens,
+                    &pred_kings,
+                );
+                let move_score = pred_piece_sel[file_int + ((7 - rank_int) * 8)] * dst_score;
+                if move_score > best_move_score {
+                    best_move_score = move_score;
+                    best_move_uci =
+                        "".to_string() + &file.to_string() + &rank.to_string() + &dst_uci;
+                }
+                print!("{} ", move_score);
+
+                // print!("{} ", pred_pawns[file_int + ((7 - rank_int) * 8)]);
+                // print!("{} ", get_best_move_and_score(rank, file, &game_state, &pred_pawns).0);
             }
             println!();
         }
+
+        println!("Scylla plays {}", best_move_uci);
+        game_state
+            .make_move(Move::from_uci(&best_move_uci).unwrap())
+            .unwrap();
 
         println!("{}", game_state);
         print!("Your move: ");
