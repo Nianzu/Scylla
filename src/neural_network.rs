@@ -2,7 +2,7 @@ use rand::Rng;
 use savefile::prelude::*;
 use savefile_derive::Savefile;
 
-#[derive(Savefile)]
+#[derive(Savefile,Clone)]
 struct Layer {
     weights: Vec<f32>,
     weight_width: usize,
@@ -118,7 +118,7 @@ impl Layer {
     }
 }
 
-#[derive(Savefile)]
+#[derive(Savefile,Clone)]
 pub struct Network {
     name: String,
     layers: Vec<Layer>,

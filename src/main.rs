@@ -11,25 +11,126 @@ use std::time::SystemTime;
 use std::vec;
 mod neural_network;
 
-struct BitBoards {
+struct Scylla {
     pawns: Vec<i8>,
     bishops: Vec<i8>,
     knights: Vec<i8>,
     rooks: Vec<i8>,
     queens: Vec<i8>,
     kings: Vec<i8>,
+    network_piece_selector: neural_network::Network,
+    network_pawns: neural_network::Network,
+    network_bishops: neural_network::Network,
+    network_knights: neural_network::Network,
+    network_rooks: neural_network::Network,
+    network_queens: neural_network::Network,
+    network_kings: neural_network::Network,
 }
 
-impl BitBoards {
-    fn new() -> BitBoards {
-        BitBoards {
+impl Scylla {
+    fn new(
+        network_piece_selector: neural_network::Network,
+        network_pawns: neural_network::Network,
+        network_bishops: neural_network::Network,
+        network_knights: neural_network::Network,
+        network_rooks: neural_network::Network,
+        network_queens: neural_network::Network,
+        network_kings: neural_network::Network,
+    ) -> Scylla {
+        Scylla {
             pawns: vec![0; 64],
             bishops: vec![0; 64],
             knights: vec![0; 64],
             rooks: vec![0; 64],
             queens: vec![0; 64],
             kings: vec![0; 64],
+            network_piece_selector,
+            network_pawns,
+            network_bishops,
+            network_knights,
+            network_rooks,
+            network_queens,
+            network_kings,
         }
+    }
+
+    fn best_move(mut self, game_state: &Board) -> String {
+        let mut index = 0;
+        for j in ('1'..='8').rev() {
+            for i in 'a'..='h' {
+                if !game_state.occupant_of_square(i, j).unwrap().is_none() {
+                    let piece_value = if game_state
+                        .occupant_of_square(i, j)
+                        .unwrap()
+                        .unwrap()
+                        .color()
+                        == chessColor::White
+                    {
+                        1
+                    } else {
+                        -1
+                    };
+                    let piece_type = game_state
+                        .occupant_of_square(i, j)
+                        .unwrap()
+                        .unwrap()
+                        .piece_type();
+                    match piece_type {
+                        PieceType::P => self.pawns[index] = piece_value,
+                        PieceType::B => self.bishops[index] = piece_value,
+                        PieceType::N => self.knights[index] = piece_value,
+                        PieceType::R => self.rooks[index] = piece_value,
+                        PieceType::Q => self.queens[index] = piece_value,
+                        PieceType::K => self.kings[index] = piece_value,
+                    }
+                }
+                index += 1;
+            }
+        }
+
+        let vecs = vec![
+            &self.pawns,
+            &self.bishops,
+            &self.knights,
+            &self.rooks,
+            &self.queens,
+            &self.kings,
+        ];
+
+        let result = combine_vecs(vecs);
+        let pred_piece_sel = self.network_piece_selector.forward(&result);
+        let pred_pawns = self.network_pawns.forward(&result);
+        let pred_bishops = self.network_bishops.forward(&result);
+        let pred_knights = self.network_knights.forward(&result);
+        let pred_rooks = self.network_rooks.forward(&result);
+        let pred_queens = self.network_queens.forward(&result);
+        let pred_kings = self.network_kings.forward(&result);
+        let mut best_move_score = 0.0;
+        let mut best_move_uci = "".to_string();
+        for rank in ('1'..='8').rev() {
+            for file in 'a'..='h' {
+                let file_int = file as usize - 97;
+                let rank_int = rank as usize - 49;
+                let (dst_score, dst_uci) = get_best_move_and_score(
+                    rank,
+                    file,
+                    &game_state,
+                    &pred_pawns,
+                    &pred_bishops,
+                    &pred_knights,
+                    &pred_rooks,
+                    &pred_queens,
+                    &pred_kings,
+                );
+                let move_score = pred_piece_sel[file_int + ((7 - rank_int) * 8)] * dst_score;
+                if move_score > best_move_score {
+                    best_move_score = move_score;
+                    best_move_uci =
+                        "".to_string() + &file.to_string() + &rank.to_string() + &dst_uci;
+                }
+            }
+        }
+        best_move_uci
     }
 }
 
@@ -147,11 +248,11 @@ fn draw_loss_over_time(
 }
 
 // ! AI Generated
-fn combine_vecs(vecs: Vec<Vec<i8>>) -> Vec<f32> {
+fn combine_vecs(vecs: Vec<&Vec<i8>>) -> Vec<f32> {
     let mut combined: Vec<f32> = Vec::new();
 
     for vec in vecs {
-        combined.extend(vec.into_iter().map(|x| x as f32));
+        combined.extend(vec.into_iter().map(|x| *x as f32));
     }
 
     combined
@@ -330,7 +431,6 @@ fn main() {
             //#########################################################################
             let _ = draw_loss_over_time(network_name, &losses, &validation_losses);
 
-            
             //#########################################################################
             // Testing
             //#########################################################################
@@ -343,84 +443,19 @@ fn main() {
     println!("{}", banner);
     println!("{}", text);
     let mut game_state = Board::default();
-    while true {
-        let mut pieces = BitBoards::new();
+    let mut game_over = false;
+    while !game_over {
+        let mut pieces = Scylla::new(
+            networks[0].clone(),
+            networks[1].clone(),
+            networks[2].clone(),
+            networks[3].clone(),
+            networks[4].clone(),
+            networks[5].clone(),
+            networks[6].clone(),
+        );
 
-        let mut index = 0;
-        for j in ('1'..='8').rev() {
-            for i in 'a'..='h' {
-                if !game_state.occupant_of_square(i, j).unwrap().is_none() {
-                    let piece_value = if game_state
-                        .occupant_of_square(i, j)
-                        .unwrap()
-                        .unwrap()
-                        .color()
-                        == chessColor::White
-                    {
-                        1
-                    } else {
-                        -1
-                    };
-                    let piece_type = game_state
-                        .occupant_of_square(i, j)
-                        .unwrap()
-                        .unwrap()
-                        .piece_type();
-                    match piece_type {
-                        PieceType::P => pieces.pawns[index] = piece_value,
-                        PieceType::B => pieces.bishops[index] = piece_value,
-                        PieceType::N => pieces.knights[index] = piece_value,
-                        PieceType::R => pieces.rooks[index] = piece_value,
-                        PieceType::Q => pieces.queens[index] = piece_value,
-                        PieceType::K => pieces.kings[index] = piece_value,
-                    }
-                }
-                index += 1;
-            }
-        }
-
-        let vecs = vec![
-            pieces.pawns,
-            pieces.bishops,
-            pieces.knights,
-            pieces.rooks,
-            pieces.queens,
-            pieces.kings,
-        ];
-
-        let result = combine_vecs(vecs);
-        let pred_piece_sel = networks[0].forward(&result);
-        let pred_pawns = networks[1].forward(&result);
-        let pred_bishops = networks[2].forward(&result);
-        let pred_knights = networks[3].forward(&result);
-        let pred_rooks = networks[4].forward(&result);
-        let pred_queens = networks[6].forward(&result);
-        let pred_kings = networks[5].forward(&result);
-        let mut best_move_score = 0.0;
-        let mut best_move_uci = "".to_string();
-        for rank in ('1'..='8').rev() {
-            for file in 'a'..='h' {
-                let file_int = file as usize - 97;
-                let rank_int = rank as usize - 49;
-                let (dst_score, dst_uci) = get_best_move_and_score(
-                    rank,
-                    file,
-                    &game_state,
-                    &pred_pawns,
-                    &pred_bishops,
-                    &pred_knights,
-                    &pred_rooks,
-                    &pred_queens,
-                    &pred_kings,
-                );
-                let move_score = pred_piece_sel[file_int + ((7 - rank_int) * 8)] * dst_score;
-                if move_score > best_move_score {
-                    best_move_score = move_score;
-                    best_move_uci =
-                        "".to_string() + &file.to_string() + &rank.to_string() + &dst_uci;
-                }
-            }
-        }
+        let best_move_uci = Scylla::best_move(pieces,&game_state);
 
         println!("Scylla plays {}", best_move_uci);
         game_state
