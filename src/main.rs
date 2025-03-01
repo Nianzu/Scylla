@@ -453,6 +453,35 @@ fn split_vec(vec: Vec<f32>) -> Vec<Vec<f32>> {
         .collect() // Collect into a Vec<Vec<i8>>
 }
 
+fn get_best_move_and_score(rank: char, file: char, board:&Board) -> f32{
+    if board.occupant_of_square(file, rank).unwrap().is_none()
+    {
+        return 0.0;
+    }
+    if board.occupant_of_square(file, rank).unwrap().unwrap().color() == chessColor::Black
+    {
+        return 0.0;
+    }
+    let pos_uci_start=format!("{}{}",file,rank);
+    let mut moves_from_pos:Vec<String> = vec![];
+    for mv in board.gen_legal_moves() {
+        let move_str = mv.to_uci();  
+        
+        if move_str.starts_with(&pos_uci_start) {
+            let split_pos = move_str.char_indices().nth_back(1).unwrap().0;
+            moves_from_pos.push(move_str[split_pos..].to_string());
+        }
+    }
+
+    println!("{} has moves {:?}",pos_uci_start,moves_from_pos);
+    match board.occupant_of_square(file, rank).unwrap().unwrap().piece_type() {
+        PieceType::P => {}
+        _ => { return 0.0;}
+    }
+
+    return 1.0;
+}
+
 fn main() {
     let network_names = vec![
         "piece_selector",
@@ -604,7 +633,9 @@ fn main() {
             for file in 'a'..='h' {
                 let file_int = file as usize - 97;
                 let rank_int = rank as usize - 49;
-                print!("{} ", pred_piece_sel[file_int + ((7 - rank_int) * 8)])
+                // print!("{} ", pred_piece_sel[file_int + ((7 - rank_int) * 8)] * get_best_move_and_score(rank,file,&game_state))
+                get_best_move_and_score(rank,file,&game_state);
+                
             }
             println!();
         }
