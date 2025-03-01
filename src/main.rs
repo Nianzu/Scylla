@@ -8,10 +8,9 @@ use savefile_derive::Savefile;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
-use std::process::exit;
 use std::time::SystemTime;
 use std::vec;
-use std::{fs, string};
+use std::fs;
 
 #[derive(Savefile)]
 struct Layer {
@@ -228,8 +227,6 @@ struct BitBoards {
     rooks: Vec<i8>,
     queens: Vec<i8>,
     kings: Vec<i8>,
-    piece_selected: Vec<i8>,
-    destination: Vec<i8>,
 }
 
 impl BitBoards {
@@ -241,67 +238,7 @@ impl BitBoards {
             rooks: vec![0; 64],
             queens: vec![0; 64],
             kings: vec![0; 64],
-            piece_selected: vec![0; 64],
-            destination: vec![0; 64],
         }
-    }
-
-    fn export_board(board: Vec<i8>, f: &mut File) {
-        let mut output = "".to_owned();
-        for i in 0..64 {
-            output += &format!("{:2}", board[i]);
-            output += ",";
-        }
-        f.write_all(output.as_bytes())
-            .expect("Issue writing to file");
-    }
-    fn export_boards(&self, f: &mut File, destination: bool) {
-        BitBoards::export_board(self.pawns.clone(), f);
-        BitBoards::export_board(self.bishops.clone(), f);
-        BitBoards::export_board(self.knights.clone(), f);
-        BitBoards::export_board(self.rooks.clone(), f);
-        BitBoards::export_board(self.queens.clone(), f);
-        BitBoards::export_board(self.kings.clone(), f);
-        f.write_all("\n".as_bytes()).expect("Issue writing to file");
-        if destination {
-            BitBoards::export_board(self.destination.clone(), f);
-        } else {
-            BitBoards::export_board(self.piece_selected.clone(), f);
-        }
-        f.write_all("\n".as_bytes()).expect("Issue writing to file");
-    }
-
-    fn print_board(board: Vec<i8>) -> String {
-        let mut output = "".to_owned();
-        for i in 0..64 {
-            output += &format!("{:2}", board[i]);
-            output += " ";
-            if (i + 1) % 8 == 0 {
-                output += "\n"
-            }
-        }
-        output
-    }
-
-    fn print_boards(&self) -> String {
-        let mut output = "".to_owned();
-        output += "Pawns\n";
-        output += &BitBoards::print_board(self.pawns.clone());
-        output += "Bishops\n";
-        output += &BitBoards::print_board(self.bishops.clone());
-        output += "Knights\n";
-        output += &BitBoards::print_board(self.knights.clone());
-        output += "Rooks\n";
-        output += &BitBoards::print_board(self.rooks.clone());
-        output += "Queens\n";
-        output += &BitBoards::print_board(self.queens.clone());
-        output += "Kings\n";
-        output += &BitBoards::print_board(self.kings.clone());
-        output += "Piece Selected\n";
-        output += &BitBoards::print_board(self.piece_selected.clone());
-        output += "Destination\n";
-        output += &BitBoards::print_board(self.destination.clone());
-        output
     }
 }
 
@@ -448,12 +385,6 @@ fn combine_vecs(vecs: Vec<Vec<i8>>) -> Vec<f32> {
     combined
 }
 
-// ! AI Generated
-fn split_vec(vec: Vec<f32>) -> Vec<Vec<f32>> {
-    vec.chunks(8) // Iterate over chunks of 8 elements
-        .map(|chunk| chunk.to_vec()) // Convert each chunk to a Vec<i8>
-        .collect() // Collect into a Vec<Vec<i8>>
-}
 
 fn get_best_move_and_score(
     rank: char,
@@ -513,7 +444,6 @@ fn get_best_move_and_score(
             PieceType::R => pred_rooks[index],
             PieceType::Q => pred_queens[index],
             PieceType::K => pred_kings[index],
-            _ => 0.0,
         };
         if score > best_move_score {
             best_move_score = score;
@@ -525,17 +455,6 @@ fn get_best_move_and_score(
 }
 
 fn main() {
-    let text = "                             .d8888b.                    888 888           \n".to_owned()
-        + "                             d88P  Y88b                   888 888          \n"
-        + "                             Y88b.                        888 888          \n"
-        + "                              \"Y888b.    .d8888b 888  888 888 888  8888b.  \n"
-        + "                                 \"Y88b. d88P\"    888  888 888 888     \"88b \n"
-        + "                                   \"888 888      888  888 888 888 .d888888 \n"
-        + "                             Y88b  d88P Y88b.    Y88b 888 888 888 888  888 \n"
-        + "                              \"Y8888P\"   \"Y8888P  \"Y88888 888 888 \"Y888888 \n"
-        + "                                                      888                  \n"
-        + "                                                 Y8b d88P                  \n"
-        + "                                                  \"Y88P\"                   \n";
     let banner = "                                                     _:_    \n".to_owned()
         + "                                                    '-.-'   \n"
         + "                                           ()      __.'.__  \n"
@@ -551,10 +470,21 @@ fn main() {
         + "     |__|    )___(    )___(    /____\\    /____\\    /_____\\    /____\\    )___(    )___(    |__| \n"
         + "    (====)  (=====)  (=====)  (======)  (======)  (=======)  (======)  (=====)  (=====)  (====)\n"
         + "    }===={  }====={  }====={  }======{  }======{  }======={  }======{  }====={  }====={  }===={\n"
-        + "   (______)(_______)(_______)(________)(________)(_________)(________)(_______)(_______)(______)\n"
-        + "                               Ascii Art credit: Joan G. Stark\n"
-        + "                                    Software by: Nico Zucca\n\n\n\n";
-
+        + "   (______)(_______)(_______)(________)(________)(_________)(________)(_______)(_______)(______)\n";
+    let text = "                           .d8888b.                    888 888           \n"
+        .to_owned()
+        + "                           d88P  Y88b                   888 888          \n"
+        + "                           Y88b.                        888 888          \n"
+        + "                            \"Y888b.    .d8888b 888  888 888 888  8888b.  \n"
+        + "                               \"Y88b. d88P\"    888  888 888 888     \"88b \n"
+        + "                                 \"888 888      888  888 888 888 .d888888 \n"
+        + "                           Y88b  d88P Y88b.    Y88b 888 888 888 888  888 \n"
+        + "                            \"Y8888P\"   \"Y8888P  \"Y88888 888 888 \"Y888888 \n"
+        + "                                                    888                  \n"
+        + "                                               Y8b d88P                  \n"
+        + "                                                \"Y88P\"                   \n\n"
+        + "                                  Ascii Art credit: Joan G. Stark\n"
+        + "                                       Software by: Nico Zucca\n\n\n\n";
     let network_names = vec![
         "piece_selector",
         "pawn",
@@ -645,7 +575,6 @@ fn main() {
     }
     println!("{}", banner);
     println!("{}", text);
-    println!("Ready to play");
     let mut game_state = Board::default();
     while true {
         let mut pieces = BitBoards::new();
@@ -682,7 +611,6 @@ fn main() {
                 index += 1;
             }
         }
-        println!("{}", pieces.print_boards());
 
         let vecs = vec![
             pieces.pawns,
@@ -695,14 +623,12 @@ fn main() {
 
         let result = combine_vecs(vecs);
         let pred_piece_sel = networks[0].forward(&result);
-        let pred_pawns = (networks[1].forward(&result));
-        let pred_bishops = (networks[2].forward(&result));
-        let pred_knights = (networks[3].forward(&result));
-        let pred_rooks = (networks[4].forward(&result));
-        let pred_queens = (networks[6].forward(&result));
-        let pred_kings = (networks[5].forward(&result));
-
-        let mut index = 0;
+        let pred_pawns = networks[1].forward(&result);
+        let pred_bishops = networks[2].forward(&result);
+        let pred_knights = networks[3].forward(&result);
+        let pred_rooks = networks[4].forward(&result);
+        let pred_queens = networks[6].forward(&result);
+        let pred_kings = networks[5].forward(&result);
         let mut best_move_score = 0.0;
         let mut best_move_uci = "".to_string();
         for rank in ('1'..='8').rev() {
@@ -726,7 +652,6 @@ fn main() {
                     best_move_uci =
                         "".to_string() + &file.to_string() + &rank.to_string() + &dst_uci;
                 }
-
             }
         }
 
