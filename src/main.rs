@@ -219,6 +219,90 @@ impl Network {
     }
 }
 
+struct BitBoards {
+    pawns: Vec<i8>,
+    bishops: Vec<i8>,
+    knights: Vec<i8>,
+    rooks: Vec<i8>,
+    kings: Vec<i8>,
+    queens: Vec<i8>,
+    piece_selected: Vec<i8>,
+    destination: Vec<i8>,
+}
+
+impl BitBoards {
+    fn new() -> BitBoards {
+        BitBoards {
+            pawns: vec![0; 64],
+            bishops: vec![0; 64],
+            knights: vec![0; 64],
+            rooks: vec![0; 64],
+            kings: vec![0; 64],
+            queens: vec![0; 64],
+            piece_selected: vec![0; 64],
+            destination: vec![0; 64],
+        }
+    }
+
+    fn export_board(board: Vec<i8>, f: &mut File) {
+        let mut output = "".to_owned();
+        for i in 0..64 {
+            output += &format!("{:2}", board[i]);
+            output += ",";
+        }
+        f.write_all(output.as_bytes())
+            .expect("Issue writing to file");
+    }
+    fn export_boards(&self, f: &mut File, destination: bool) {
+        BitBoards::export_board(self.pawns.clone(), f);
+        BitBoards::export_board(self.bishops.clone(), f);
+        BitBoards::export_board(self.knights.clone(), f);
+        BitBoards::export_board(self.rooks.clone(), f);
+        BitBoards::export_board(self.queens.clone(), f);
+        BitBoards::export_board(self.kings.clone(), f);
+        f.write_all("\n".as_bytes()).expect("Issue writing to file");
+        if destination {
+            BitBoards::export_board(self.destination.clone(), f);
+        } else {
+            BitBoards::export_board(self.piece_selected.clone(), f);
+        }
+        f.write_all("\n".as_bytes()).expect("Issue writing to file");
+    }
+
+    fn print_board(board: Vec<i8>) -> String {
+        let mut output = "".to_owned();
+        for i in 0..64 {
+            output += &format!("{:2}", board[i]);
+            output += " ";
+            if (i + 1) % 8 == 0 {
+                output += "\n"
+            }
+        }
+        output
+    }
+
+    fn print_boards(&self) -> String {
+        let mut output = "".to_owned();
+        output += "Pawns\n";
+        output += &BitBoards::print_board(self.pawns.clone());
+        output += "Bishops\n";
+        output += &BitBoards::print_board(self.bishops.clone());
+        output += "Knights\n";
+        output += &BitBoards::print_board(self.knights.clone());
+        output += "Rooks\n";
+        output += &BitBoards::print_board(self.rooks.clone());
+        output += "Queens\n";
+        output += &BitBoards::print_board(self.queens.clone());
+        output += "Kings\n";
+        output += &BitBoards::print_board(self.kings.clone());
+        output += "Piece Selected\n";
+        output += &BitBoards::print_board(self.piece_selected.clone());
+        output += "Destination\n";
+        output += &BitBoards::print_board(self.destination.clone());
+        output
+    }
+}
+
 fn load_scylla_csv(path: &str) -> (Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>, Vec<Vec<f32>>) {
     let mut train_data = Vec::new();
     let mut train_labels = Vec::new();
@@ -351,6 +435,24 @@ fn network_gradient_loss(predictions: &Vec<f32>, target: &Vec<f32>) -> Vec<f32> 
         .collect()
 }
 
+// ! AI Generated
+fn combine_vecs(vecs: Vec<Vec<i8>>) -> Vec<f32> {
+    let mut combined: Vec<f32> = Vec::new();
+
+    for vec in vecs {
+        combined.extend(vec.into_iter().map(|x| x as f32));
+    }
+
+    combined
+}
+
+// ! AI Generated
+fn split_vec(vec: Vec<f32>) -> Vec<Vec<f32>> {
+    vec.chunks(8) // Iterate over chunks of 8 elements
+        .map(|chunk| chunk.to_vec()) // Convert each chunk to a Vec<i8>
+        .collect() // Collect into a Vec<Vec<i8>>
+}
+
 fn main() {
     let network_names = vec![
         "piece_selector",
@@ -443,6 +545,70 @@ fn main() {
     println!("Ready to play");
     let mut game_state = Board::default();
     while true {
+        let mut pieces = BitBoards::new();
+
+        let mut index = 0;
+        for j in ('1'..='8').rev() {
+            for i in 'a'..='h' {
+                if !game_state.occupant_of_square(i, j).unwrap().is_none() {
+                    let piece_value = if game_state
+                        .occupant_of_square(i, j)
+                        .unwrap()
+                        .unwrap()
+                        .color()
+                        == chessColor::White
+                    {
+                        1
+                    } else {
+                        -1
+                    };
+                    let piece_type = game_state
+                        .occupant_of_square(i, j)
+                        .unwrap()
+                        .unwrap()
+                        .piece_type();
+                    match piece_type {
+                        PieceType::P => pieces.pawns[index] = piece_value,
+                        PieceType::B => pieces.bishops[index] = piece_value,
+                        PieceType::N => pieces.knights[index] = piece_value,
+                        PieceType::R => pieces.rooks[index] = piece_value,
+                        PieceType::K => pieces.kings[index] = piece_value,
+                        PieceType::Q => pieces.queens[index] = piece_value,
+                    }
+                }
+                index += 1;
+            }
+        }
+        println!("{}", pieces.print_boards());
+
+        let vecs = vec![
+            pieces.pawns,
+            pieces.bishops,
+            pieces.knights,
+            pieces.rooks,
+            pieces.kings,
+            pieces.queens,
+        ];
+
+        let result = combine_vecs(vecs);
+        let pred_piece_sel = networks[0].forward(&result);
+        // let pred_pawns = (networks[1].forward(&result)) ;
+        // let pred_bishops = (networks[2].forward(&result));
+        // let pred_knights = (networks[3].forward(&result));
+        // let pred_rooks = (networks[4].forward(&result));
+        // let pred_kings = (networks[5].forward(&result));
+        // let pred_queens = (networks[6].forward(&result));
+
+        let mut index = 0;
+        for rank in ('1'..='8').rev() {
+            for file in 'a'..='h' {
+                let file_int = file as usize - 97;
+                let rank_int = rank as usize - 49;
+                print!("{} ", pred_piece_sel[file_int + ((7 - rank_int) * 8)])
+            }
+            println!();
+        }
+
         println!("{}", game_state);
         print!("Your move: ");
         std::io::stdout().flush().unwrap();
