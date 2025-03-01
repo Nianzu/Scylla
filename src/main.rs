@@ -445,7 +445,10 @@ fn main() {
     let mut game_state = Board::default();
     let mut game_over = false;
     while !game_over {
-        let mut pieces = Scylla::new(
+        //#########################################################################
+        // Scylla
+        //#########################################################################
+        let scylla = Scylla::new(
             networks[0].clone(),
             networks[1].clone(),
             networks[2].clone(),
@@ -455,28 +458,43 @@ fn main() {
             networks[6].clone(),
         );
 
-        let best_move_uci = Scylla::best_move(pieces,&game_state);
+        let best_move_uci = scylla.best_move(&game_state);
 
         println!("Scylla plays {}", best_move_uci);
         game_state
             .make_move(Move::from_uci(&best_move_uci).unwrap())
             .unwrap();
 
+        if game_state.is_checkmate() {
+            println!("Scylla wins by checkmate!");
+            game_over = true;
+        }
+
+        //#########################################################################
+        // Human
+        //#########################################################################
         println!("{}", game_state);
-        print!("Your move: ");
-        std::io::stdout().flush().unwrap();
-        let mut move_string = String::new();
-        io::stdin()
-            .read_line(&mut move_string)
-            .expect("Error reading input");
-        println!("{}", move_string);
-        match game_state.make_move_uci(move_string.trim()) {
-            Ok(()) => {
-                println!("OK MOVE!")
+        let mut human_made_legal_move = false;
+        while !human_made_legal_move {
+            print!("Your move: ");
+            std::io::stdout().flush().unwrap();
+            let mut move_string = String::new();
+            io::stdin()
+                .read_line(&mut move_string)
+                .expect("Error reading input");
+            match game_state.make_move_uci(move_string.trim()) {
+                Ok(()) => {
+                    human_made_legal_move = true;
+                }
+                Err(_) => {
+                    println!("BAD MOVE")
+                }
             }
-            Err(_) => {
-                println!("BAD MOVE")
-            }
+        }
+
+        if game_state.is_checkmate() {
+            println!("You win by checkmate!");
+            game_over = true;
         }
     }
 }
