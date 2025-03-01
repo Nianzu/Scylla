@@ -18,3 +18,28 @@ For plotters, you will have to install some dependencies on your system.
 ```
 sudo apt install pkg-config libfreetype6-dev libfontconfig1-dev
 ```
+## Methodology
+
+pawn            |  knight | bishop
+:-------------------------:|:-------------------------:|:-------------------------:
+![](pawn.png)  |  ![](knight.png) | ![](bishop.png)
+rook            |  queen | king
+![](rook.png)  |  ![](queen.png) | ![](king.png)
+piece selector
+![](pawn.png)
+
+## Known issues
+
+ * General code cleanliness
+    > If I had more time, I would have written a shorter \[crate\]. 
+    >
+    > -Blaise Pascal
+ * Unknown elo
+ * Only plays as white
+ * Validation step contaminated with training data. May have lead to over-fitting.
+ * Panics if you or Scylla play an illegal move
+ * Lack of documentation
+ * Does not have a way to detect end of game
+ * Only trained on 2000 vs 2000 games (might expect you not to make monumentally silly moves)
+ * No concept of an opening
+
