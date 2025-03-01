@@ -8,6 +8,7 @@ use savefile_derive::Savefile;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
+use std::process::exit;
 use std::time::SystemTime;
 use std::vec;
 use std::{fs, string};
@@ -524,6 +525,36 @@ fn get_best_move_and_score(
 }
 
 fn main() {
+    let text = "                             .d8888b.                    888 888           \n".to_owned()
+        + "                             d88P  Y88b                   888 888          \n"
+        + "                             Y88b.                        888 888          \n"
+        + "                              \"Y888b.    .d8888b 888  888 888 888  8888b.  \n"
+        + "                                 \"Y88b. d88P\"    888  888 888 888     \"88b \n"
+        + "                                   \"888 888      888  888 888 888 .d888888 \n"
+        + "                             Y88b  d88P Y88b.    Y88b 888 888 888 888  888 \n"
+        + "                              \"Y8888P\"   \"Y8888P  \"Y88888 888 888 \"Y888888 \n"
+        + "                                                      888                  \n"
+        + "                                                 Y8b d88P                  \n"
+        + "                                                  \"Y88P\"                   \n";
+    let banner = "                                                     _:_    \n".to_owned()
+        + "                                                    '-.-'   \n"
+        + "                                           ()      __.'.__  \n"
+        + "                                        .-:--:-.  |_______| \n"
+        + "                                 ()      \\____/    \\=====/      ()          \n"
+        + "                                 /\\      {====}     )___(       /\\               \n"
+        + "                      (\\=,      //\\\\      )__(     /_____\\     //\\\\     (\\=,        \n"
+        + "      __    |'-'-'|  //  .\\    (    )    /____\\     |   |     (    )   //  .\\   |'-'-'|    __  \n"
+        + "     /  \\   |_____| (( \\_  \\    )__(      |  |      |   |      )__(   (( \\_  \\  |_____|   /  \\  \n"
+        + "     \\__/    |===|   ))  `\\_)  /____\\     |  |      |   |     /____\\   ))  `\\_)  |===|    \\__/  \n"
+        + "    /____\\   |   |  (/     \\    |  |      |  |      |   |      |  |   (/     \\   |   |   /____\\   \n"
+        + "     |  |    |   |   | _.-'|    |  |      |  |      |   |      |  |    | _.-'|   |   |    |  |  \n"
+        + "     |__|    )___(    )___(    /____\\    /____\\    /_____\\    /____\\    )___(    )___(    |__| \n"
+        + "    (====)  (=====)  (=====)  (======)  (======)  (=======)  (======)  (=====)  (=====)  (====)\n"
+        + "    }===={  }====={  }====={  }======{  }======{  }======={  }======{  }====={  }====={  }===={\n"
+        + "   (______)(_______)(_______)(________)(________)(_________)(________)(_______)(_______)(______)\n"
+        + "                               Ascii Art credit: Joan G. Stark\n"
+        + "                                    Software by: Nico Zucca\n\n\n\n";
+
     let network_names = vec![
         "piece_selector",
         "pawn",
@@ -612,6 +643,8 @@ fn main() {
             println!("Accuracy: {}", validation_loss);
         }
     }
+    println!("{}", banner);
+    println!("{}", text);
     println!("Ready to play");
     let mut game_state = Board::default();
     while true {
@@ -693,12 +726,8 @@ fn main() {
                     best_move_uci =
                         "".to_string() + &file.to_string() + &rank.to_string() + &dst_uci;
                 }
-                print!("{} ", move_score);
 
-                // print!("{} ", pred_pawns[file_int + ((7 - rank_int) * 8)]);
-                // print!("{} ", get_best_move_and_score(rank, file, &game_state, &pred_pawns).0);
             }
-            println!();
         }
 
         println!("Scylla plays {}", best_move_uci);
